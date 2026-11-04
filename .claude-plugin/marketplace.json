@@ -1,0 +1,5 @@
+{
+  "name": "sidetrack",
+  "owner": { "name": "carminegreen" },
+  "plugins": [{ "name": "sidetrack", "source": "./" }]
+}

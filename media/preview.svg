@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="340" viewBox="0 0 820 340" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14" xml:space="preserve">
+<rect width="820" height="340" rx="12" fill="#1e1f22"/>
+<rect x="0.5" y="0.5" width="819" height="339" rx="12" fill="none" stroke="#393b40"/>
+<text x="24" y="30" fill="#6f737a">Files</text>
+<text x="88" y="30" fill="#dfe1e5" font-weight="700">Sidetrack</text>
+<rect x="88" y="37" width="78" height="2" fill="#4c9ee8"/>
+<line x1="0" y1="44" x2="820" y2="44" stroke="#393b40"/>
+<text y="66" fill="#e5c07b" font-weight="700"><tspan x="24">⎇</tspan><tspan x="40.8">main</tspan></text>
+<text y="92"><tspan x="24.0" fill="#4c9ee8">●</tspan><tspan x="32.4" fill="#e8a33d">─╮</tspan><tspan x="49.2" fill="#bcbec4"> </tspan><tspan x="57.6" fill="#e5c07b" font-weight="700">origin &amp; main </tspan><tspan x="175.2" fill="#7a7e85" font-weight="700">Merge branch 'feature/search'</tspan></text>
+<text x="796" y="92" text-anchor="end" fill="#6f737a">robin       16:42</text>
+<text y="116"><tspan x="24.0" fill="#4c9ee8">│</tspan><tspan x="32.4" fill="#bcbec4"> </tspan><tspan x="40.8" fill="#e8a33d">●</tspan><tspan x="49.2" fill="#bcbec4"> </tspan><tspan x="57.6" fill="#73c991">feature/search </tspan><tspan x="183.6" fill="#dfe1e5">Add fuzzy matching to search</tspan></text>
+<text x="796" y="116" text-anchor="end" fill="#6f737a">sam         15:10</text>
+<text y="140"><tspan x="24.0" fill="#4c9ee8">●</tspan><tspan x="32.4" fill="#bcbec4"> </tspan><tspan x="40.8" fill="#e8a33d">│</tspan><tspan x="49.2" fill="#bcbec4"> </tspan><tspan x="57.6" fill="#7fb4ca">v1.4.0 </tspan><tspan x="116.4" fill="#dfe1e5">Bump version to 1.4.0</tspan></text>
+<text x="796" y="140" text-anchor="end" fill="#6f737a">robin       11:03</text>
+<text y="164"><tspan x="24.0" fill="#4c9ee8">│</tspan><tspan x="32.4" fill="#bcbec4"> </tspan><tspan x="40.8" fill="#e8a33d">●</tspan><tspan x="49.2" fill="#bcbec4"> </tspan><tspan x="57.6" fill="#dfe1e5">Index file names on startup</tspan></text>
+<text x="796" y="164" text-anchor="end" fill="#6f737a">sam      03/11/26</text>
+<text y="188"><tspan x="24.0" fill="#4c9ee8">●</tspan><tspan x="32.4" fill="#5fb760">─</tspan><tspan x="40.8" fill="#e8a33d">│</tspan><tspan x="49.2" fill="#5fb760">─╮</tspan><tspan x="66.0" fill="#bcbec4"> </tspan><tspan x="74.4" fill="#7a7e85">Merge pull request #12 from fix/crash</tspan></text>
+<text x="796" y="188" text-anchor="end" fill="#6f737a">alex     03/11/26</text>
+<text y="212"><tspan x="24.0" fill="#4c9ee8">│</tspan><tspan x="32.4" fill="#bcbec4"> </tspan><tspan x="40.8" fill="#e8a33d">│</tspan><tspan x="49.2" fill="#bcbec4"> </tspan><tspan x="57.6" fill="#5fb760">●</tspan><tspan x="66.0" fill="#bcbec4"> </tspan><tspan x="74.4" fill="#b38ee0">origin/fix/crash </tspan><tspan x="217.2" fill="#dfe1e5">Guard against an empty config</tspan></text>
+<text x="796" y="212" text-anchor="end" fill="#6f737a">alex     02/11/26</text>
+<text y="236"><tspan x="24.0" fill="#4c9ee8">│</tspan><tspan x="32.4" fill="#bcbec4"> </tspan><tspan x="40.8" fill="#e8a33d">●</tspan><tspan x="49.2" fill="#bcbec4"> </tspan><tspan x="57.6" fill="#5fb760">│</tspan><tspan x="66.0" fill="#bcbec4"> </tspan><tspan x="74.4" fill="#dfe1e5">Scaffold the search panel</tspan></text>
+<text x="796" y="236" text-anchor="end" fill="#6f737a">sam      02/11/26</text>
+<text y="260"><tspan x="24.0" fill="#4c9ee8">●</tspan><tspan x="32.4" fill="#5fb760">─</tspan><tspan x="40.8" fill="#e8a33d">┴</tspan><tspan x="49.2" fill="#5fb760">─╯</tspan><tspan x="66.0" fill="#bcbec4"> </tspan><tspan x="74.4" fill="#dfe1e5">Refresh the graph only when visible</tspan></text>
+<text x="796" y="260" text-anchor="end" fill="#6f737a">robin    01/11/26</text>
+<text y="284"><tspan x="24.0" fill="#4c9ee8">●</tspan><tspan x="32.4" fill="#bcbec4"> </tspan><tspan x="40.8" fill="#dfe1e5">Draw merges with rounded corners</tspan></text>
+<text x="796" y="284" text-anchor="end" fill="#6f737a">alex     31/10/26</text>
+<text y="308"><tspan x="24.0" fill="#4c9ee8">●</tspan><tspan x="32.4" fill="#bcbec4"> </tspan><tspan x="40.8" fill="#7fb4ca">v1.0.0 </tspan><tspan x="99.6" fill="#dfe1e5">Initial commit</tspan></text>
+<text x="796" y="308" text-anchor="end" fill="#6f737a">robin    30/10/26</text>
+</svg>
