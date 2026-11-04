@@ -23,8 +23,21 @@ export function parseLog(stdout: string): Commit[] {
     .map(record => {
       const [hash = '', parents = '', decorations = '', author = '', date = '', subject = ''] = record.split('\x1f')
       const [day = '', time = ''] = date.split(' ')
-      return { hash, parents: parents.split(' ').filter(Boolean), refs: parseRefs(decorations), author, day, time, subject }
+      return {
+        hash,
+        parents: parents.split(' ').filter(Boolean),
+        refs: parseRefs(decorations),
+        author: printable(author),
+        day,
+        time,
+        subject: printable(subject),
+      }
     })
+}
+
+// One control character in a commit, such as colour codes pasted from a terminal, makes the engine refuse the whole pane.
+function printable(text: string): string {
+  return text.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
 }
 
 function parseRefs(text: string): Ref[] {

@@ -64,7 +64,7 @@ test('the pane draws the graph on every surface', async ($, on) => {
   on('process.run', (_, e) => ({
     value: {
       exitCode: 0,
-      stdout: e.argv[0] === 'date' ? '04/11/26\n' : LOG,
+      stdout: e.argv[0] === 'date' ? '04/11/26\n' : e.argv[1] === 'symbolic-ref' ? 'main\n' : LOG,
       stderr: '',
       isStdoutTruncated: false,
       isStderrTruncated: false,

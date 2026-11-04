@@ -20,6 +20,7 @@ const graph = atom({ plugin: 'sidetrack', key: 'graph' } as const, { branch: '',
 
 let lastOutput = ''
 let isOpenedAtStart = false
+let isPolling = false
 
 // No `focus`: at start the pane must not take the keys or another mod's front tab.
 async function openOnce($: EngineInterface) {
@@ -33,36 +34,49 @@ async function paneOf($: EngineInterface) {
   return (await $.ui.panes()).find(pane => pane.id === PANE)
 }
 
+// A command that cannot start, such as git or date not installed, reads as a failed run instead of throwing.
+function run($: EngineInterface, argv: string[]) {
+  return $.process.run(argv).catch((error: unknown) => ({
+    exitCode: -1,
+    stdout: '',
+    stderr: `${argv[0]}: ${error instanceof Error ? error.message : String(error)}`,
+  }))
+}
+
 async function refresh($: EngineInterface, force = false) {
   if (!force && !(await paneOf($))?.isShown) return
 
-  const [log, today] = await Promise.all([
-    $.process.run([
+  const [log, head, today] = await Promise.all([
+    run($, [
       'git',
       'log',
       '--branches',
       '--remotes',
       '--tags',
+      // Must precede HEAD: skips it while unborn, in a new repository or on an orphan branch.
+      '--ignore-missing',
       'HEAD',
       '--date-order',
       '--decorate=full',
       `-n${LIMIT}`,
       '--date=format-local:%d/%m/%y %H:%M',
       `--format=${LOG_FORMAT}`,
+      '--',
     ]),
-    $.process.run(['date', '+%d/%m/%y']),
+    run($, ['git', 'symbolic-ref', '--short', '-q', 'HEAD']),
+    run($, ['date', '+%d/%m/%y']),
   ])
-  const output = `${log.exitCode}\n${log.stdout}${log.stderr}${today.stdout}`
+  const output = `${log.exitCode}\n${log.stdout}${log.stderr}${head.stdout}${today.stdout}`
   if (!force && output === lastOutput) return
   lastOutput = output
 
-  if (log.exitCode !== 0) {
-    const error = log.stderr.trim().split('\n')[0] || `git log: exit ${log.exitCode}`
+  const commits = parseLog(log.stdout)
+  if (log.exitCode !== 0 || commits.length === 0) {
+    const error = log.exitCode === 0 ? 'No commits yet' : log.stderr.trim().split('\n')[0] || `git log: exit ${log.exitCode}`
     await update($, graph, () => ({ branch: '', today: '', commits: [], error }))
     return
   }
-  const commits = parseLog(log.stdout)
-  const branch = commits.flatMap(commit => commit.refs).find(ref => ref.kind === 'head')?.name ?? 'HEAD'
+  const branch = head.stdout.trim() || 'HEAD'
   await update($, graph, () => ({ branch, today: today.stdout.trim(), commits }))
 }
 
@@ -71,7 +85,14 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'sidetrack', description: 'Show or hide the git graph pane' })
-    $.clock.every(POLL_MS, () => void refresh($).catch(() => {}))
+    // A git log slower than the period, as in a large history without a commit-graph, is not run twice at once.
+    $.clock.every(POLL_MS, () => {
+      if (isPolling) return
+      isPolling = true
+      void refresh($)
+        .catch(() => {})
+        .finally(() => (isPolling = false))
+    })
     if (openAtStart) $.clock.after(START_FALLBACK_MS, () => void openOnce($).catch(() => {}))
 
     return next(e)
@@ -86,6 +107,8 @@ export const register: Register = (on, options) => {
   }).catch((_$, e, next) => next(e))
 
   on('command.run', { command: 'sidetrack' }, async $ => {
+    // The person's own toggle wins over the open at start still pending.
+    isOpenedAtStart = true
     const pane = await paneOf($)
     if (pane?.isShown) {
       await $.ui.close({ id: PANE })
