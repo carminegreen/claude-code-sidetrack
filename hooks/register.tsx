@@ -23,7 +23,6 @@ const graph = atom({ plugin: 'sidetrack', key: 'graph' } as const, { branch: '',
   shape: 'graph-1',
 })
 
-let lastState = ''
 let isOpenedAtStart = false
 let isPolling = false
 
@@ -71,9 +70,9 @@ async function refresh($: EngineInterface, force = false) {
     run($, ['git', 'symbolic-ref', '-q', 'HEAD']),
     run($, ['date', '+%d/%m/%y']),
   ])
-  const state = `${refs.stdout}${refs.stderr}${head.stdout}${today.stdout}`
-  if (!force && state === lastState) return
-  lastState = state
+  const stamp = `${refs.stdout}${refs.stderr}${head.stdout}${today.stdout}`
+  // Kept beside the graph, not in the module: a /clear starts the session's state over, and the graph must be read again.
+  if (!force && stamp === (await read($, graph)).stamp) return
 
   const log = await run($, [
     'git',
@@ -96,16 +95,15 @@ async function refresh($: EngineInterface, force = false) {
     '--',
   ])
   const commits = parseLog(log.stdout)
-  // A timeout or a killed git leaves the refs as they were, so a failed log is tried again on the next poll.
-  if (log.exitCode !== 0) lastState = ''
   if (log.exitCode !== 0 || commits.length === 0) {
     const error =
       log.exitCode === 0 ? 'No commits yet' : printable(log.stderr.trim().split('\n')[0] ?? '') || `git log: exit ${log.exitCode}`
-    await update($, graph, () => ({ branch: '', today: '', commits: [], error }))
+    // A timeout or a killed git leaves the refs as they were, so a failed log keeps no stamp and is tried again on the next poll.
+    await update($, graph, () => ({ branch: '', today: '', commits: [], error, stamp: log.exitCode === 0 ? stamp : undefined }))
     return
   }
   const branch = printable(head.stdout.trim().replace(/^refs\/heads\//, '')) || 'HEAD'
-  await update($, graph, () => ({ branch, today: today.stdout.trim(), commits }))
+  await update($, graph, () => ({ branch, today: today.stdout.trim(), commits, stamp }))
 }
 
 export const register: Register = (on, options) => {

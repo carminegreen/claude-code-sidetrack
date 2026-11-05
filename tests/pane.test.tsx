@@ -510,3 +510,31 @@ for (const [what, lanes, tags] of [
     await ui.unmount()
   })
 }
+
+test('after a /clear the pane draws the graph again', async ($, on) => {
+  const clock = mock.clock(on)
+  world(on, { log: ok(LOG), branch: 'main' })
+  // As the host does: /clear starts a new session, its state back to each initial value until written again.
+  let isCleared = false
+  on('session.end', (_, e) => {
+    isCleared = true
+    return { sessionId: e.sessionId }
+  })
+  on('state.get', async (_, e, next) => {
+    const held = await next(e)
+    return isCleared && held.value ? { value: { value: undefined, version: held.value.version } } : held
+  })
+  on('state.set', (_, e, next) => {
+    isCleared = false
+    return next(e)
+  })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } } as never)
+  await clock.advance(3000)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Second/ }))?.text).toBe('● main Second')
+  await ui.unmount()
+})
