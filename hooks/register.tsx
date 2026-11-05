@@ -58,6 +58,8 @@ async function refresh($: EngineInterface, force = false) {
       'HEAD',
       '--date-order',
       '--decorate=full',
+      // log.showSignature in the person's config would print each verification into stdout.
+      '--no-show-signature',
       `-n${LIMIT}`,
       '--date=format-local:%d/%m/%y %H:%M',
       `--format=${LOG_FORMAT}`,
