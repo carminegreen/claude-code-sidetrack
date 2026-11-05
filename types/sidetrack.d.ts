@@ -17,6 +17,8 @@ export type Graph = {
   today: string
   commits: Commit[]
   error?: string
+  // The refs, HEAD and day the commits were read at.
+  stamp?: string
 }
 
 declare module 'claude-code' {
