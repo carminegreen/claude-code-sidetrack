@@ -538,3 +538,19 @@ test('after a /clear the pane draws the graph again', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /Second/ }))?.text).toBe('● main Second')
   await ui.unmount()
 })
+
+test('the refresh button reads the graph again at once', async ($, on) => {
+  mock.clock(on)
+  const git = { log: ok(LOG), branch: 'main' }
+  const { seen } = world(on, git)
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+  git.log = ok(record('c', 'b', 'HEAD -> refs/heads/main', 'Ada Lovelace', '04/11/26 11:00', 'Third') + '\n' + LOG)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'refresh' })
+  expect(seen.logs).toBe(2)
+  expect((await ui.find({ type: 'Text', text: /Third/ }))?.text).toBe('● main Third')
+  await ui.unmount()
+})
