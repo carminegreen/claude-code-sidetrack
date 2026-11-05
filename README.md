@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/type-Claude_Code_mod-D97757" alt="Claude Code mod">
-  <img src="https://img.shields.io/badge/version-0.1.0-4c9ee8" alt="Version 0.1.0">
+  <img src="https://img.shields.io/badge/version-0.2.0-4c9ee8" alt="Version 0.2.0">
 </p>
 
 <p align="center">
