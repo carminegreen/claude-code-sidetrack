@@ -35,7 +35,7 @@ type Git = { exitCode: number; stdout: string; stderr: string }
 
 function world(
   on: On,
-  git: { log: Git; branch?: string; delayMs?: number; missing?: string; signed?: boolean },
+  git: { log: Git; branch?: string; delayMs?: number; missing?: string; signed?: boolean; latin1?: boolean },
   clock?: MockClock,
 ) {
   const seen = { opens: 0, closes: 0, logs: 0 }
@@ -74,7 +74,10 @@ function world(
       sub === 'log' && git.signed && !e.argv.includes('--no-show-signature')
         ? out.stdout.replace(/^(?=.)/gm, 'Good "git" signature for ada@example.com\n')
         : out.stdout
-    return { value: { ...out, stdout, isStdoutTruncated: false, isStderrTruncated: false } }
+    // As git does with i18n.logOutputEncoding=latin1: latin1 bytes, read back as UTF-8.
+    const decoded =
+      sub === 'log' && git.latin1 && !e.argv.includes('--encoding=UTF-8') ? stdout.replace(/[^\x00-\x7f]/g, '�') : stdout
+    return { value: { ...out, stdout: decoded, isStdoutTruncated: false, isStderrTruncated: false } }
   })
 
   return {
@@ -301,6 +304,18 @@ test('signatures shown by the git config leave the graph whole', async ($, on) =
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /First/ }))?.text).toBe('● First')
+  await ui.unmount()
+})
+
+test('a log encoding set in the git config leaves accents readable', async ($, on) => {
+  mock.clock(on)
+  world(on, { log: ok(record('a', '', 'HEAD -> refs/heads/main', 'José', '04/11/26 10:30', 'Größe')), branch: 'main', latin1: true })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Gr/ }))?.text).toBe('● main Größe')
   await ui.unmount()
 })
 

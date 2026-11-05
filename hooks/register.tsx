@@ -60,6 +60,8 @@ async function refresh($: EngineInterface, force = false) {
       '--decorate=full',
       // log.showSignature in the person's config would print each verification into stdout.
       '--no-show-signature',
+      // i18n.logOutputEncoding in the person's config would re-encode names and subjects that are read back as UTF-8.
+      '--encoding=UTF-8',
       `-n${LIMIT}`,
       '--date=format-local:%d/%m/%y %H:%M',
       `--format=${LOG_FORMAT}`,
