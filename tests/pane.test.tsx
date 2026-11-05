@@ -33,7 +33,11 @@ const COMMAND = {
 
 type Git = { exitCode: number; stdout: string; stderr: string }
 
-function world(on: On, git: { log: Git; branch?: string; delayMs?: number; missing?: string }, clock?: MockClock) {
+function world(
+  on: On,
+  git: { log: Git; branch?: string; delayMs?: number; missing?: string; signed?: boolean },
+  clock?: MockClock,
+) {
   const seen = { opens: 0, closes: 0, logs: 0 }
   let pane: { isShown: boolean } | undefined
 
@@ -65,7 +69,12 @@ function world(on: On, git: { log: Git; branch?: string; delayMs?: number; missi
             ? { exitCode: 1, stdout: '', stderr: '' }
             : { exitCode: 0, stdout: `${git.branch}\n`, stderr: '' }
           : git.log
-    return { value: { ...out, isStdoutTruncated: false, isStderrTruncated: false } }
+    // As git does with log.showSignature=true: the verification text lands in stdout before each record.
+    const stdout =
+      sub === 'log' && git.signed && !e.argv.includes('--no-show-signature')
+        ? out.stdout.replace(/^(?=.)/gm, 'Good "git" signature for ada@example.com\n')
+        : out.stdout
+    return { value: { ...out, stdout, isStdoutTruncated: false, isStderrTruncated: false } }
   })
 
   return {
@@ -243,6 +252,18 @@ test('a control character in a commit leaves the pane drawn', async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /Paste/ }))?.text).toBe('● main Paste  [31mred')
   expect((await ui.find({ type: 'Text', text: /Ev/ }))?.text).toBe('Ev e              10:30')
+  await ui.unmount()
+})
+
+test('signatures shown by the git config leave the graph whole', async ($, on) => {
+  mock.clock(on)
+  world(on, { log: ok(LOG), branch: 'main', signed: true })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /First/ }))?.text).toBe('● First')
   await ui.unmount()
 })
 
