@@ -39,7 +39,16 @@ const symbolic = (argv: readonly string[], branch: string, clash?: boolean) =>
 
 function world(
   on: On,
-  git: { log: Git; branch?: string; delayMs?: number; missing?: string; signed?: boolean; latin1?: boolean; clash?: boolean },
+  git: {
+    log: Git
+    branch?: string
+    delayMs?: number
+    missing?: string
+    signed?: boolean
+    latin1?: boolean
+    clash?: boolean
+    unplaced?: boolean
+  },
   clock?: MockClock,
 ) {
   const seen = { opens: 0, closes: 0, logs: 0, checks: 0 }
@@ -56,8 +65,9 @@ function world(
   }))
   on('ui.open', () => {
     seen.opens++
-    pane = { isShown: true }
-    return { value: { isPlaced: true } }
+    // As an open at start under 144 columns, or in a -p run: open, but not drawn.
+    pane = { isShown: !git.unplaced }
+    return { value: git.unplaced ? { isPlaced: false, reason: 'no-surface' } : { isPlaced: true } }
   })
   on('ui.close', () => {
     seen.closes++
@@ -116,6 +126,18 @@ test('the pane opens once at start, without filetree', async ($, on) => {
   expect(seen.opens).toBe(1)
   await clock.advance(10000)
   expect(seen.opens).toBe(1)
+})
+
+test('a pane opened at start but not drawn runs git once it is shown', async ($, on) => {
+  const clock = mock.clock(on)
+  const { seen, show } = world(on, { log: ok(LOG), branch: 'main', unplaced: true })
+
+  await $.session.start(START)
+  await clock.advance(30000)
+  expect(seen).toEqual({ opens: 1, closes: 0, logs: 0, checks: 0 })
+  show()
+  await clock.advance(3000)
+  expect(seen.logs).toBe(1)
 })
 
 test('with open at start off, the pane waits for the command', { options: { openAtStart: 'off' } }, async ($, on) => {
