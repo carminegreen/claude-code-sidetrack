@@ -42,7 +42,7 @@ function world(
   git: { log: Git; branch?: string; delayMs?: number; missing?: string; signed?: boolean; latin1?: boolean; clash?: boolean },
   clock?: MockClock,
 ) {
-  const seen = { opens: 0, closes: 0, logs: 0 }
+  const seen = { opens: 0, closes: 0, logs: 0, checks: 0 }
   let pane: { isShown: boolean } | undefined
 
   on('command.register', () => ({ value: { command: 'sidetrack' } }))
@@ -63,6 +63,7 @@ function world(
   on('process.run', async (_, e) => {
     const [cmd, sub] = e.argv
     if (sub === 'log') seen.logs++
+    if (sub === 'show-ref') seen.checks++
     if (git.delayMs) await clock?.sleep(git.delayMs)
     if (cmd === git.missing) return { deny: `spawn ${cmd} ENOENT` }
     const out: Git =
@@ -72,7 +73,8 @@ function world(
           ? git.branch === undefined
             ? { exitCode: 1, stdout: '', stderr: '' }
             : { exitCode: 0, stdout: `${symbolic(e.argv, git.branch, git.clash)}\n`, stderr: '' }
-          : git.log
+          : // show-ref's refs change whenever the log does, so the log stands in for them.
+            git.log
     // As git does with log.showSignature=true: the verification text lands in stdout before each record.
     const stdout =
       sub === 'log' && git.signed && !e.argv.includes('--no-show-signature')
@@ -128,7 +130,7 @@ test('the command toggles the pane', async ($, on) => {
   await $.session.start(START)
   expect((await $.command.run(COMMAND)).text).toBe('Sidetrack pane opened.')
   expect((await $.command.run(COMMAND)).text).toBe('Sidetrack pane closed.')
-  expect(seen).toEqual({ opens: 1, closes: 1, logs: 1 })
+  expect(seen).toEqual({ opens: 1, closes: 1, logs: 1, checks: 1 })
 })
 
 test('a pane closed before the open at start stays closed', async ($, on) => {
@@ -139,7 +141,7 @@ test('a pane closed before the open at start stays closed', async ($, on) => {
   await $.command.run(COMMAND)
   await $.command.run(COMMAND)
   await clock.advance(10000)
-  expect(seen).toEqual({ opens: 1, closes: 1, logs: 1 })
+  expect(seen).toEqual({ opens: 1, closes: 1, logs: 1, checks: 1 })
 })
 
 test('a hidden pane polls nothing, a shown one polls every 3 seconds', async ($, on) => {
@@ -148,18 +150,32 @@ test('a hidden pane polls nothing, a shown one polls every 3 seconds', async ($,
 
   await $.session.start(START)
   await $.command.run(COMMAND)
-  expect(seen.logs).toBe(1)
+  expect(seen.checks).toBe(1)
   await clock.advance(3000)
-  expect(seen.logs).toBe(2)
+  expect(seen.checks).toBe(2)
   hide()
   await clock.advance(9000)
-  expect(seen.logs).toBe(2)
+  expect(seen.checks).toBe(2)
   show()
   await clock.advance(3000)
-  expect(seen.logs).toBe(3)
+  expect(seen.checks).toBe(3)
 })
 
-test('a slow git log is not stacked by the next polls', async ($, on) => {
+test('git log runs again only once a ref, HEAD or the day changed', async ($, on) => {
+  const clock = mock.clock(on)
+  const git = { log: ok(LOG), branch: 'main' }
+  const { seen } = world(on, git)
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+  await clock.advance(9000)
+  expect(seen.logs).toBe(1)
+  git.branch = 'other'
+  await clock.advance(3000)
+  expect(seen.logs).toBe(2)
+})
+
+test('a slow git is not stacked by the next polls', async ($, on) => {
   const clock = mock.clock(on)
   const git = { log: ok(LOG), branch: 'main', delayMs: 0 }
   const { seen } = world(on, git, clock)
@@ -168,9 +184,9 @@ test('a slow git log is not stacked by the next polls', async ($, on) => {
   await $.command.run(COMMAND)
   git.delayMs = 7000
   await clock.advance(9000)
-  expect(seen.logs).toBe(2)
+  expect(seen.checks).toBe(2)
   await clock.advance(3000)
-  expect(seen.logs).toBe(3)
+  expect(seen.checks).toBe(3)
 })
 
 test('a new commit shows on the next poll, and an error clears once git recovers', async ($, on) => {
