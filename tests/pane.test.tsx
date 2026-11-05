@@ -399,3 +399,23 @@ test('a right-to-left subject or author leaves the graph reading left to right',
   for (const text of [/⎇/, /תיקון/, /10:30/]) expect((await ui.find({ type: 'Text', text }))?.props).toMatchObject({ dir: 'ltr' })
   await ui.unmount()
 })
+
+test('the header and ref labels take theme colours, readable on a light theme too', async ($, on) => {
+  mock.clock(on)
+  const refs = 'HEAD -> refs/heads/main, refs/heads/dev, refs/remotes/origin/x, tag: refs/tags/v1'
+  world(on, { log: ok(record('a', '', refs, 'Ada Lovelace', '04/11/26 10:30', 'First')), branch: 'main' })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const color = async (text: RegExp) => (await ui.find({ type: 'Text', text }))?.props.color
+  expect([await color(/⎇/), await color(/^main $/), await color(/^dev $/), await color(/^origin\/x $/), await color(/^v1 $/)]).toEqual([
+    'warning',
+    'warning',
+    'success',
+    'merged',
+    'planMode',
+  ])
+  await ui.unmount()
+})

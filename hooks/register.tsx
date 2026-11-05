@@ -12,7 +12,8 @@ const FILETREE_PANE = 'filetree'
 const START_FALLBACK_MS = 2500
 
 const LANE_COLORS = ['#4c9ee8', '#e8a33d', '#5fb760', '#c96fd8', '#e0605a', '#3fbfb0', '#d8c14a', '#8b8fea']
-const REF_COLORS: Record<RefKind, string> = { head: '#e5c07b', local: '#73c991', remote: '#b38ee0', tag: '#7fb4ca' }
+// Theme keys, picked by hue (gold, green, purple, teal), so labels stay readable on a light or colour-blind theme.
+const REF_COLORS: Record<RefKind, string> = { head: 'warning', local: 'success', remote: 'merged', tag: 'planMode' }
 
 const graph = atom({ plugin: 'sidetrack', key: 'graph' } as const, { branch: '', today: '', commits: [] } as Graph, {
   shape: 'graph-1',
