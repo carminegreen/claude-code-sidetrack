@@ -67,7 +67,8 @@ async function refresh($: EngineInterface, force = false) {
       `--format=${LOG_FORMAT}`,
       '--',
     ]),
-    run($, ['git', 'symbolic-ref', '--short', '-q', 'HEAD']),
+    // Not --short: it answers heads/<name> when a tag shares the branch's name.
+    run($, ['git', 'symbolic-ref', '-q', 'HEAD']),
     run($, ['date', '+%d/%m/%y']),
   ])
   const output = `${log.exitCode}\n${log.stdout}${log.stderr}${head.stdout}${today.stdout}`
@@ -81,7 +82,7 @@ async function refresh($: EngineInterface, force = false) {
     await update($, graph, () => ({ branch: '', today: '', commits: [], error }))
     return
   }
-  const branch = printable(head.stdout.trim()) || 'HEAD'
+  const branch = printable(head.stdout.trim().replace(/^refs\/heads\//, '')) || 'HEAD'
   await update($, graph, () => ({ branch, today: today.stdout.trim(), commits }))
 }
 
