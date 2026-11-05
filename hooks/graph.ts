@@ -49,7 +49,7 @@ function parseRefs(text: string): Ref[] {
       const match = REF_PREFIXES.find(([prefix]) => part.startsWith(prefix))
       if (!match) return []
       const [prefix, kind] = match
-      const name = part.slice(prefix.length)
+      const name = printable(part.slice(prefix.length))
       // A remote's HEAD only points at its default branch, which carries its own label.
       if (kind === 'remote' && /^[^/]+\/HEAD$/.test(name)) return []
       return [{ name, kind }]

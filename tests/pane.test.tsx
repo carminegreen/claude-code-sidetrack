@@ -279,6 +279,19 @@ test('a control character in the git error leaves the pane drawn', async ($, on)
   await ui.unmount()
 })
 
+test('a control character in a branch name leaves the pane drawn', async ($, on) => {
+  mock.clock(on)
+  world(on, { log: ok(record('a', '', 'HEAD -> refs/heads/x\u009by', 'Ada Lovelace', '04/11/26 10:30', 'First')), branch: 'x\u009by' })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /⎇/ }))?.text).toBe('⎇ x y')
+  expect((await ui.find({ type: 'Text', text: /First/ }))?.text).toBe('● x y First')
+  await ui.unmount()
+})
+
 test('signatures shown by the git config leave the graph whole', async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main', signed: true })

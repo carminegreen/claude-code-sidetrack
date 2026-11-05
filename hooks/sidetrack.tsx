@@ -79,7 +79,7 @@ async function refresh($: EngineInterface, force = false) {
     await update($, graph, () => ({ branch: '', today: '', commits: [], error }))
     return
   }
-  const branch = head.stdout.trim() || 'HEAD'
+  const branch = printable(head.stdout.trim()) || 'HEAD'
   await update($, graph, () => ({ branch, today: today.stdout.trim(), commits }))
 }
 
