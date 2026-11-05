@@ -485,3 +485,28 @@ test('a subject one huge paragraph long leaves the rows below it drawn', async (
   expect((await ui.find({ type: 'Text', text: /Last/ }))?.text).toBe('● Last')
   await ui.unmount()
 })
+
+// 250 commits on `lanes` branches at once, every fifth one carrying `tags` tags.
+const history = (lanes: number, tags: number) =>
+  Array.from({ length: 250 }, (_, i) => {
+    const [lane, n] = [i % lanes, Math.floor(i / lanes)]
+    const refs = i % 5 === 0 ? Array.from({ length: tags }, (_, k) => `tag: refs/tags/v${i}.${k}`).join(', ') : ''
+    return record(`c${lane}.${n}`, i + lanes < 250 ? `c${lane}.${n + 1}` : '', refs, 'Ada Lovelace', '01/11/26 09:00', `Subject ${i}`)
+  }).join('\n')
+
+for (const [what, lanes, tags] of [
+  ['40 branches at once', 40, 0],
+  ['140 tags on every fifth commit', 1, 140],
+] as const) {
+  test(`${what} stay under the engine's tree bound`, async ($, on) => {
+    mock.clock(on)
+    world(on, { log: ok(history(lanes, tags)), branch: 'main' })
+
+    await $.session.start(START)
+    await $.command.run(COMMAND)
+
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(await ui.find({ type: 'Text', text: /Subject 0$/ })).toBeDefined()
+    await ui.unmount()
+  })
+}

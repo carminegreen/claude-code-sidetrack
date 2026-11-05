@@ -145,7 +145,8 @@ function toRuns(chars: readonly Cell[]): Run[] {
   const runs: Run[] = []
   for (const { ch, color } of chars) {
     const last = runs[runs.length - 1]
-    if (last && last.lane === color) last.text += ch
+    // A blank shows no colour, so it joins the run before it: half the tree nodes on a wide graph.
+    if (last && (last.lane === color || ch === ' ')) last.text += ch
     else runs.push({ text: ch, lane: color })
   }
   return runs
