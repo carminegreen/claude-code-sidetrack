@@ -84,6 +84,8 @@ async function refresh($: EngineInterface, force = false) {
     '--',
   ])
   const commits = parseLog(log.stdout)
+  // A timeout or a killed git leaves the refs as they were, so a failed log is tried again on the next poll.
+  if (log.exitCode !== 0) lastState = ''
   if (log.exitCode !== 0 || commits.length === 0) {
     const error =
       log.exitCode === 0 ? 'No commits yet' : printable(log.stderr.trim().split('\n')[0] ?? '') || `git log: exit ${log.exitCode}`

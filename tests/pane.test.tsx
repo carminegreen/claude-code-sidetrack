@@ -48,6 +48,7 @@ function world(
     latin1?: boolean
     clash?: boolean
     unplaced?: boolean
+    refs?: string
   },
   clock?: MockClock,
 ) {
@@ -87,8 +88,10 @@ function world(
           ? git.branch === undefined
             ? { exitCode: 1, stdout: '', stderr: '' }
             : { exitCode: 0, stdout: `${symbolic(e.argv, git.branch, git.clash)}\n`, stderr: '' }
-          : // show-ref's refs change whenever the log does, so the log stands in for them.
-            git.log
+          : sub === 'show-ref' && git.refs !== undefined
+            ? ok(git.refs)
+            : // Otherwise show-ref's refs change whenever the log does, so the log stands in for them.
+              git.log
     // As git does with log.showSignature=true: the verification text lands in stdout before each record.
     const stdout =
       sub === 'log' && git.signed && !e.argv.includes('--no-show-signature')
@@ -242,6 +245,21 @@ test('a new commit shows on the next poll, and an error clears once git recovers
   await clock.advance(3000)
   ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /Third/ }))?.text).toBe('● main Third')
+  await ui.unmount()
+})
+
+test('a git log that fails while the refs stay put is tried again on the next poll', async ($, on) => {
+  const clock = mock.clock(on)
+  const git = { log: { exitCode: -1, stdout: '', stderr: 'git: timed out\n' }, branch: 'main', refs: 'b HEAD\nb refs/heads/main\n' }
+  world(on, git)
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+  git.log = ok(LOG)
+  await clock.advance(3000)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Second/ }))?.text).toBe('● main Second')
   await ui.unmount()
 })
 
