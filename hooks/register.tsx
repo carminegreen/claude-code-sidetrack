@@ -143,7 +143,7 @@ export const register: Register = (on, options) => {
         {commits.map((commit, i) => {
           const isHead = commit.refs.some(ref => ref.kind === 'head')
           const when = commit.day === today ? commit.time : commit.day
-          const meta = [showAuthor ? commit.author.slice(0, 14).padEnd(14) : '', showDate ? when.padStart(8) : '']
+          const meta = [showAuthor ? [...commit.author].slice(0, 14).join('').padEnd(14) : '', showDate ? when.padStart(8) : '']
             .filter(Boolean)
             .join(' ')
 

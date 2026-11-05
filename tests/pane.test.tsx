@@ -255,6 +255,18 @@ test('a control character in a commit leaves the pane drawn', async ($, on) => {
   await ui.unmount()
 })
 
+test('a long author is cut between characters, never inside an emoji', async ($, on) => {
+  mock.clock(on)
+  world(on, { log: ok(record('a', '', 'HEAD -> refs/heads/main', 'Ada Lovelace 🚀x', '04/11/26 10:30', 'First')), branch: 'main' })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Ada/ }))?.text).toBe('Ada Lovelace 🚀    10:30')
+  await ui.unmount()
+})
+
 test('a control character in the git error leaves the pane drawn', async ($, on) => {
   mock.clock(on)
   world(on, { log: { exitCode: 128, stdout: '', stderr: '\x1b[31mfatal:\x1b[m broken\n' }, branch: 'main' })
