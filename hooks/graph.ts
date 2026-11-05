@@ -13,6 +13,10 @@ const REF_PREFIXES: [string, RefKind][] = [
   ['tag: refs/tags/', 'tag'],
 ]
 
+// %s is the whole first paragraph. No pane is this wide, and the engine draws 100,000 characters a tree in all:
+// one subject a paragraph long left every row below it blank.
+const SUBJECT_MAX = 300
+
 // git refuses NUL in a commit and keeps newlines out of %an and %s, so no author or subject can split a field or a commit.
 export const LOG_FORMAT = '%H%x00%P%x00%D%x00%an%x00%ad%x00%s'
 
@@ -30,7 +34,7 @@ export function parseLog(stdout: string): Commit[] {
         author: printable(author),
         day,
         time,
-        subject: printable(subject),
+        subject: printable([...subject].slice(0, SUBJECT_MAX).join('')),
       }
     })
 }
