@@ -1,8 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Graph, RefKind } from '../types'
+import type { Commit, Graph, RefKind } from '../types'
 import { graphRows, labels, LOG_FORMAT, parseLog, printable } from './graph'
+import type { Run } from './graph'
 
 const PANE = 'sidetrack'
 const TITLE = 'Graph'
@@ -33,6 +34,17 @@ async function openOnce($: EngineInterface) {
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   // Undrawn, under 144 columns or in a -p run, the pane is filled by the first poll that finds it shown.
   if (opened.isPlaced) await refresh($, true)
+}
+
+// The engine refuses a whole tree past 20,000 nodes, each element and each string one: the header takes 4, a row 9,
+// two more a lane run and three a label. A wide history or a pile of tags drops its oldest rows instead.
+function rowsThatFit(commits: readonly Commit[], rows: readonly Run[][]): number {
+  let nodes = 4
+  for (const [i, commit] of commits.entries()) {
+    nodes += 9 + 2 * (rows[i]?.length ?? 0) + 3 * commit.refs.length
+    if (nodes > 20000) return i
+  }
+  return commits.length
 }
 
 async function paneOf($: EngineInterface) {
@@ -155,7 +167,7 @@ export const register: Register = (on, options) => {
         <Text color={REF_COLORS.head} weight="bold" wrap="truncate-end" dir="ltr">
           ⎇ {branch}
         </Text>
-        {commits.map((commit, i) => {
+        {commits.slice(0, rowsThatFit(commits, rows)).map((commit, i) => {
           const isHead = commit.refs.some(ref => ref.kind === 'head')
           const when = commit.day === today ? commit.time : commit.day
           const author = Array.from(GRAPHEMES.segment(commit.author), part => part.segment)
