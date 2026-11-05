@@ -47,6 +47,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 | What | How |
 | --- | --- |
 | Show or hide the pane | `/sidetrack` |
+| Refresh the graph now | click `↻` in the pane's header, or `r` with the pane focused |
 | Switch between side panes | click a tab, or `ctrl+x tab` |
 | Scroll the history | focus the pane, then the arrow keys |
 

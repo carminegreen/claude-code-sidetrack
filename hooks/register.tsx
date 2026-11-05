@@ -35,10 +35,10 @@ async function openOnce($: EngineInterface) {
   if (opened.isPlaced) await refresh($, true)
 }
 
-// The engine refuses a whole tree past 20,000 nodes, each element and each string one: the header takes 4, a row 9,
+// The engine refuses a whole tree past 20,000 nodes, each element and each string one: the header takes 7, a row 9,
 // two more a lane run and three a label. A wide history or a pile of tags drops its oldest rows instead.
 function rowsThatFit(commits: readonly Commit[], rows: readonly Run[][]): number {
-  let nodes = 4
+  let nodes = 7
   for (const [i, commit] of commits.entries()) {
     nodes += 9 + 2 * (rows[i]?.length ?? 0) + 3 * commit.refs.length
     if (nodes > 20000) return i
@@ -148,7 +148,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const { branch, today, commits, error } = await read($, graph)
     const width = e.props.bodyColumns
 
@@ -162,9 +162,14 @@ export const register: Register = (on, options) => {
     // dir: a row reads by its first strong letter, so a Hebrew or Arabic subject would mirror the lanes.
     return (
       <Box flexDirection="column">
-        <Text color={REF_COLORS.head} weight="bold" wrap="truncate-end" dir="ltr">
-          ⎇ {branch}
-        </Text>
+        <Box flexDirection="row">
+          <Box flexGrow={1} flexShrink={1}>
+            <Text color={REF_COLORS.head} weight="bold" wrap="truncate-end" dir="ltr">
+              ⎇ {branch}
+            </Text>
+          </Box>
+          <Button key="refresh" label="↻" plain dimColor hotkey="r" onPress={() => void refresh($, true).catch(() => {})} />
+        </Box>
         {commits.slice(0, rowsThatFit(commits, rows)).map((commit, i) => {
           const isHead = commit.refs.some(ref => ref.kind === 'head')
           const when = commit.day === today ? commit.time : commit.day
