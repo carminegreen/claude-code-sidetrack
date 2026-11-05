@@ -15,7 +15,7 @@ const PANE = {
   component: 'Pane',
   requestId: 'sidetrack',
   props: {
-    title: 'Sidetrack',
+    title: 'Graph',
     isFocused: false,
     bodyColumns: 80,
     placement: 'dock',
@@ -48,7 +48,7 @@ function world(
   on('command.register', () => ({ value: { command: 'sidetrack' } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('ui.panes', () => ({
-    value: pane ? [{ id: 'sidetrack', title: 'Sidetrack', isShown: pane.isShown, isFocused: false, isPlaced: true }] : [],
+    value: pane ? [{ id: 'sidetrack', title: 'Graph', isShown: pane.isShown, isFocused: false, isPlaced: true }] : [],
   }))
   on('ui.open', () => {
     seen.opens++

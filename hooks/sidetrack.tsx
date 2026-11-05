@@ -5,7 +5,7 @@ import type { Graph, RefKind } from '../types'
 import { graphRows, labels, LOG_FORMAT, parseLog, printable } from './graph'
 
 const PANE = 'sidetrack'
-const TITLE = 'Sidetrack'
+const TITLE = 'Graph'
 const LIMIT = 250
 const POLL_MS = 3000
 const FILETREE_PANE = 'filetree'

@@ -26,7 +26,7 @@ const PANE = {
   component: 'Pane',
   requestId: 'sidetrack',
   props: {
-    title: 'Sidetrack',
+    title: 'Graph',
     isFocused: false,
     bodyColumns: 80,
     placement: 'dock',
