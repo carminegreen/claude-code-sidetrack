@@ -93,7 +93,8 @@ export const register: Register = (on, options) => {
   const openAtStart = options?.openAtStart !== 'off'
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'sidetrack', description: 'Show or hide the git graph pane' })
+    // Immediate: the graph is most worth watching while Claude works, so the toggle must not wait for the turn to end.
+    await $.command.register({ name: 'sidetrack', description: 'Show or hide the git graph pane', immediate: true })
     // A git log slower than the period, as in a large history without a commit-graph, is not run twice at once.
     $.clock.every(POLL_MS, () => {
       if (isPolling) return
