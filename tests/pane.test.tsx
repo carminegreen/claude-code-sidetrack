@@ -387,3 +387,15 @@ test('without date the graph still draws, every commit dated in full', async ($,
   expect((await ui.find({ type: 'Text', text: /Ada/ }))?.text).toBe('Ada Lovelace   04/11/26')
   await ui.unmount()
 })
+
+test('a right-to-left subject or author leaves the graph reading left to right', async ($, on) => {
+  mock.clock(on)
+  world(on, { log: ok(record('a', '', '', 'דוד לוי', '04/11/26 10:30', 'תיקון באג')), branch: 'עברית' })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  for (const text of [/⎇/, /תיקון/, /10:30/]) expect((await ui.find({ type: 'Text', text }))?.props).toMatchObject({ dir: 'ltr' })
+  await ui.unmount()
+})
