@@ -11,6 +11,9 @@ const POLL_MS = 3000
 const FILETREE_PANE = 'filetree'
 const START_FALLBACK_MS = 2500
 
+// A flag or a skin-toned emoji is several code points, so the author is cut between graphemes.
+const GRAPHEMES = new Intl.Segmenter()
+
 const LANE_COLORS = ['#4c9ee8', '#e8a33d', '#5fb760', '#c96fd8', '#e0605a', '#3fbfb0', '#d8c14a', '#8b8fea']
 // Theme keys, picked by hue (gold, green, purple, teal), so labels stay readable on a light or colour-blind theme.
 const REF_COLORS: Record<RefKind, string> = { head: 'warning', local: 'success', remote: 'merged', tag: 'planMode' }
@@ -152,7 +155,10 @@ export const register: Register = (on, options) => {
         {commits.map((commit, i) => {
           const isHead = commit.refs.some(ref => ref.kind === 'head')
           const when = commit.day === today ? commit.time : commit.day
-          const meta = [showAuthor ? [...commit.author].slice(0, 14).join('').padEnd(14) : '', showDate ? when.padStart(8) : '']
+          const author = Array.from(GRAPHEMES.segment(commit.author), part => part.segment)
+            .slice(0, 14)
+            .join('')
+          const meta = [showAuthor ? author.padEnd(14) : '', showDate ? when.padStart(8) : '']
             .filter(Boolean)
             .join(' ')
 

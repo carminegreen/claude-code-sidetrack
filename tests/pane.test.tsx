@@ -293,13 +293,22 @@ test('a control character in a commit leaves the pane drawn', async ($, on) => {
 
 test('a long author is cut between characters, never inside an emoji', async ($, on) => {
   mock.clock(on)
-  world(on, { log: ok(record('a', '', 'HEAD -> refs/heads/main', 'Ada Lovelace 🚀x', '04/11/26 10:30', 'First')), branch: 'main' })
+  const log = [
+    record('c', 'b', 'HEAD -> refs/heads/main', 'Ada Lovelace 🚀x', '04/11/26 10:30', 'Rocket'),
+    record('b', 'a', '', 'Ada Lovelace 🇮🇹x', '04/11/26 10:20', 'Flag'),
+    record('a', '', '', 'Ada Lovelace 👍🏽x', '04/11/26 10:10', 'Thumb'),
+  ].join('\n')
+  world(on, { log: ok(log), branch: 'main' })
 
   await $.session.start(START)
   await $.command.run(COMMAND)
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /Ada/ }))?.text).toBe('Ada Lovelace 🚀    10:30')
+  expect((await ui.findAll({ type: 'Text', text: /Ada/ })).map(node => node.text.replace(/ +10:\d0$/, ''))).toEqual([
+    'Ada Lovelace 🚀',
+    'Ada Lovelace 🇮🇹',
+    'Ada Lovelace 👍🏽',
+  ])
   await ui.unmount()
 })
 
