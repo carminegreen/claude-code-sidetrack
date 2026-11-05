@@ -1,4 +1,4 @@
-import type { On } from 'claude-code'
+import type { CommandSpec, On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { MockClock } from 'claude-code/testing'
 
@@ -44,8 +44,12 @@ function world(
 ) {
   const seen = { opens: 0, closes: 0, logs: 0, checks: 0 }
   let pane: { isShown: boolean } | undefined
+  let command: CommandSpec | undefined
 
-  on('command.register', () => ({ value: { command: 'sidetrack' } }))
+  on('command.register', (_, e) => {
+    command = e
+    return { value: { command: 'sidetrack' } }
+  })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('ui.panes', () => ({
     value: pane ? [{ id: 'sidetrack', title: 'Graph', isShown: pane.isShown, isFocused: false, isPlaced: true }] : [],
@@ -88,6 +92,7 @@ function world(
 
   return {
     seen,
+    command: () => command,
     hide: () => {
       if (pane) pane.isShown = false
     },
@@ -131,6 +136,14 @@ test('the command toggles the pane', async ($, on) => {
   expect((await $.command.run(COMMAND)).text).toBe('Sidetrack pane opened.')
   expect((await $.command.run(COMMAND)).text).toBe('Sidetrack pane closed.')
   expect(seen).toEqual({ opens: 1, closes: 1, logs: 1, checks: 1 })
+})
+
+test('the command toggles the pane while a turn runs', async ($, on) => {
+  mock.clock(on)
+  const { command } = world(on, { log: ok(LOG), branch: 'main' })
+
+  await $.session.start(START)
+  expect(command()?.immediate).toBe(true)
 })
 
 test('a pane closed before the open at start stays closed', async ($, on) => {
