@@ -5,7 +5,7 @@ import { graphRows, labels, parseLog } from '../hooks/graph'
 const text = (rows: ReturnType<typeof graphRows>) => rows.map(runs => runs.map(run => run.text).join(''))
 
 const record = (hash: string, parents: string, refs: string, subject: string) =>
-  [hash, parents, refs, 'Ada Lovelace', '04/11/26 10:30', subject].join('\x1f') + '\x1e'
+  [hash, parents, refs, 'Ada Lovelace', '04/11/26 10:30', subject].join('\0')
 
 const LOG = [
   record('m', 'b c', 'HEAD -> refs/heads/main, refs/remotes/origin/main, refs/remotes/origin/HEAD', 'Merge feature'),
@@ -54,6 +54,14 @@ test('decorations become labels', async () => {
   expect(labels(merge?.refs ?? [])).toEqual([{ name: 'origin & main', kind: 'head' }])
   expect(feature?.refs).toEqual([{ name: 'feature', kind: 'local' }])
   expect(fix?.refs).toEqual([{ name: 'v1', kind: 'tag' }])
+})
+
+test('separator bytes in an author or subject stay in their field', async () => {
+  const [commit, ...rest] = parseLog(['a', '', '', 'Ev\x1fil', '04/11/26 10:30', 'evil\x1edeadbeef\x1fx'].join('\0') + '\n')
+  expect(rest).toEqual([])
+  expect(commit?.author).toBe('Ev il')
+  expect(commit?.day).toBe('04/11/26')
+  expect(commit?.subject).toBe('evil deadbeef x')
 })
 
 test('the pane draws the graph on every surface', async ($, on) => {
