@@ -3,7 +3,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { MockClock } from 'claude-code/testing'
 
 const record = (hash: string, parents: string, refs: string, author: string, date: string, subject: string) =>
-  [hash, parents, refs, author, date, subject].join('\x1f') + '\x1e'
+  [hash, parents, refs, author, date, subject].join('\0')
 
 const LOG = [
   record('b', 'a', 'HEAD -> refs/heads/main', 'Ada Lovelace', '04/11/26 10:30', 'Second'),

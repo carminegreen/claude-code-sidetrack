@@ -13,15 +13,15 @@ const REF_PREFIXES: [string, RefKind][] = [
   ['tag: refs/tags/', 'tag'],
 ]
 
-export const LOG_FORMAT = '%H%x1f%P%x1f%D%x1f%an%x1f%ad%x1f%s%x1e'
+// git refuses NUL in a commit and keeps newlines out of %an and %s, so no author or subject can split a field or a commit.
+export const LOG_FORMAT = '%H%x00%P%x00%D%x00%an%x00%ad%x00%s'
 
 export function parseLog(stdout: string): Commit[] {
   return stdout
-    .split('\x1e')
-    .map(record => record.replace(/^\n/, ''))
+    .split('\n')
     .filter(Boolean)
-    .map(record => {
-      const [hash = '', parents = '', decorations = '', author = '', date = '', subject = ''] = record.split('\x1f')
+    .map(line => {
+      const [hash = '', parents = '', decorations = '', author = '', date = '', subject = ''] = line.split('\0')
       const [day = '', time = ''] = date.split(' ')
       return {
         hash,
