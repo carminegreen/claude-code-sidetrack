@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Graph, RefKind } from '../types'
-import { graphRows, labels, LOG_FORMAT, parseLog } from './graph'
+import { graphRows, labels, LOG_FORMAT, parseLog, printable } from './graph'
 
 const PANE = 'sidetrack'
 const TITLE = 'Sidetrack'
@@ -74,7 +74,8 @@ async function refresh($: EngineInterface, force = false) {
 
   const commits = parseLog(log.stdout)
   if (log.exitCode !== 0 || commits.length === 0) {
-    const error = log.exitCode === 0 ? 'No commits yet' : log.stderr.trim().split('\n')[0] || `git log: exit ${log.exitCode}`
+    const error =
+      log.exitCode === 0 ? 'No commits yet' : printable(log.stderr.trim().split('\n')[0] ?? '') || `git log: exit ${log.exitCode}`
     await update($, graph, () => ({ branch: '', today: '', commits: [], error }))
     return
   }

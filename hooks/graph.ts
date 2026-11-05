@@ -36,7 +36,7 @@ export function parseLog(stdout: string): Commit[] {
 }
 
 // One control character in a commit, such as colour codes pasted from a terminal, makes the engine refuse the whole pane.
-function printable(text: string): string {
+export function printable(text: string): string {
   return text.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
 }
 
