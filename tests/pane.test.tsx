@@ -33,9 +33,13 @@ const COMMAND = {
 
 type Git = { exitCode: number; stdout: string; stderr: string }
 
+// As git does: --short names the branch heads/<name> when a tag has the same name.
+const symbolic = (argv: readonly string[], branch: string, clash?: boolean) =>
+  !argv.includes('--short') ? `refs/heads/${branch}` : clash ? `heads/${branch}` : branch
+
 function world(
   on: On,
-  git: { log: Git; branch?: string; delayMs?: number; missing?: string; signed?: boolean; latin1?: boolean },
+  git: { log: Git; branch?: string; delayMs?: number; missing?: string; signed?: boolean; latin1?: boolean; clash?: boolean },
   clock?: MockClock,
 ) {
   const seen = { opens: 0, closes: 0, logs: 0 }
@@ -67,7 +71,7 @@ function world(
         : sub === 'symbolic-ref'
           ? git.branch === undefined
             ? { exitCode: 1, stdout: '', stderr: '' }
-            : { exitCode: 0, stdout: `${git.branch}\n`, stderr: '' }
+            : { exitCode: 0, stdout: `${symbolic(e.argv, git.branch, git.clash)}\n`, stderr: '' }
           : git.log
     // As git does with log.showSignature=true: the verification text lands in stdout before each record.
     const stdout =
@@ -316,6 +320,18 @@ test('a log encoding set in the git config leaves accents readable', async ($, o
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /Gr/ }))?.text).toBe('● main Größe')
+  await ui.unmount()
+})
+
+test('a tag named like the branch leaves the header on the branch name', async ($, on) => {
+  mock.clock(on)
+  world(on, { log: ok(LOG), branch: 'main', clash: true })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /⎇/ }))?.text).toBe('⎇ main')
   await ui.unmount()
 })
 
