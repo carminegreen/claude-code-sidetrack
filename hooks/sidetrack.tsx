@@ -142,9 +142,10 @@ export const register: Register = (on, options) => {
     const showAuthor = width >= 64
     const showDate = width >= 40
 
+    // dir: a row reads by its first strong letter, so a Hebrew or Arabic subject would mirror the lanes.
     return (
       <Box flexDirection="column">
-        <Text color={REF_COLORS.head} weight="bold" wrap="truncate-end">
+        <Text color={REF_COLORS.head} weight="bold" wrap="truncate-end" dir="ltr">
           ⎇ {branch}
         </Text>
         {commits.map((commit, i) => {
@@ -157,7 +158,7 @@ export const register: Register = (on, options) => {
           return (
             <Box flexDirection="row">
               <Box flexGrow={1} flexShrink={1}>
-                <Text wrap="truncate-end">
+                <Text wrap="truncate-end" dir="ltr">
                   {(rows[i] ?? []).map(run => (
                     <Text color={run.lane < 0 ? undefined : LANE_COLORS[run.lane % LANE_COLORS.length]}>{run.text}</Text>
                   ))}{' '}
@@ -173,7 +174,7 @@ export const register: Register = (on, options) => {
               </Box>
               {meta ? (
                 <Box flexShrink={0} marginLeft={1}>
-                  <Text dimColor>{meta}</Text>
+                  <Text dimColor dir="ltr">{meta}</Text>
                 </Box>
               ) : null}
             </Box>
