@@ -30,8 +30,9 @@ let isPolling = false
 async function openOnce($: EngineInterface) {
   if (isOpenedAtStart) return
   isOpenedAtStart = true
-  await $.ui.open({ id: PANE, title: TITLE })
-  await refresh($, true)
+  const opened = await $.ui.open({ id: PANE, title: TITLE })
+  // Undrawn, under 144 columns or in a -p run, the pane is filled by the first poll that finds it shown.
+  if (opened.isPlaced) await refresh($, true)
 }
 
 async function paneOf($: EngineInterface) {
