@@ -428,3 +428,20 @@ test('the header and ref labels take theme colours, readable on a light theme to
   ])
   await ui.unmount()
 })
+
+test('a subject one huge paragraph long leaves the rows below it drawn', async ($, on) => {
+  mock.clock(on)
+  const log = [
+    record('c', 'b', 'HEAD -> refs/heads/main', 'Ada Lovelace', '04/11/26 10:30', 'x'.repeat(120000)),
+    record('b', 'a', '', 'Ada Lovelace', '04/11/26 10:20', 'Below'),
+    record('a', '', '', 'Ada Lovelace', '04/11/26 10:10', 'Last'),
+  ].join('\n')
+  world(on, { log: ok(log), branch: 'main' })
+
+  await $.session.start(START)
+  await $.command.run(COMMAND)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Last/ }))?.text).toBe('● Last')
+  await ui.unmount()
+})
