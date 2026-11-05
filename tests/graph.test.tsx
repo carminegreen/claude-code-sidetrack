@@ -56,6 +56,17 @@ test('decorations become labels', async () => {
   expect(fix?.refs).toEqual([{ name: 'v1', kind: 'tag' }])
 })
 
+test('only a remote HEAD goes unlabelled, not a branch or tag named like one', async () => {
+  const [commit] = parseLog(
+    record('a', '', 'HEAD -> refs/heads/main, refs/heads/fix/HEAD, tag: refs/tags/rel/HEAD, refs/remotes/origin/HEAD', 'Refs'),
+  )
+  expect(commit?.refs).toEqual([
+    { name: 'main', kind: 'head' },
+    { name: 'fix/HEAD', kind: 'local' },
+    { name: 'rel/HEAD', kind: 'tag' },
+  ])
+})
+
 test('separator bytes in an author or subject stay in their field', async () => {
   const [commit, ...rest] = parseLog(['a', '', '', 'Ev\x1fil', '04/11/26 10:30', 'evil\x1edeadbeef\x1fx'].join('\0') + '\n')
   expect(rest).toEqual([])
