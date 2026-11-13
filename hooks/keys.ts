@@ -17,7 +17,7 @@ const GROUPS: readonly ShortcutGroup[] = [
   {
     title: 'Search',
     keys: [
-      { key: 's', label: 'focus search' },
+      { key: 's', label: 'search file names, recent files first' },
       { key: 'i', label: 'search in the folder under the cursor' },
       { key: 'c / r', label: 'match case / regular expression' },
       { key: 'q', label: 'search file contents instead of names' },

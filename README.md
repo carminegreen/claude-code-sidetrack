@@ -68,7 +68,7 @@ An install fails with `Unrecognized key: "options"` on Claude Code older than 2.
 - File tree of the cwd or a pinned folder, with Git, size, line count and date columns ([tree](docs/tree.md))
 - Collapse all, and expand all up to three levels deep ([tree](docs/tree.md))
 - File icons colored by language or kind, emblems on well-known folders, symlink arrows, a brain on agent instruction files, and Nerd Font, plain or text glyphs ([tree](docs/tree.md))
-- Search by name across unopened folders, by case or regular expression, scoped to one folder ([search](docs/search.md))
+- Search file names with a ranked, fuzzy list that goes to the picked file in the tree, by case or regular expression, scoped to one folder, and see the files touched this session ([search](docs/search.md))
 - Search inside files with `git grep` or `grep -r`, and open a match at its line ([search](docs/search.md))
 - Jump to any folder zoxide style with `z` ([search](docs/search.md))
 - Git status per file and folder, line counts on changed files, and the branch with ahead and behind ([git](docs/git.md))

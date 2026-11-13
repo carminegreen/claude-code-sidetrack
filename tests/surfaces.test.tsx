@@ -325,6 +325,8 @@ const keyOf = (node: unknown): string => {
   return has(props, 'key') && typeof props.key === 'string' ? props.key : ''
 }
 const deskRows = (tree: unknown): string[] => every(tree, n => has(n, 'type') && n.type === 'Box' && keyOf(n).startsWith('row:')).map(n => keyOf(n).slice(4))
+const deskFound = (tree: unknown): string[] => every(tree, n => has(n, 'type') && n.type === 'Box' && keyOf(n).startsWith('found-row:')).map(n => keyOf(n).slice('found-row:'.length))
+const termFound = (tree: unknown): string[] => treeRows(tree).rows.flatMap(r => (r.id.startsWith('find:') ? [r.id.slice('find:'.length)] : []))
 const svgs = (tree: unknown): { key: string; alt: string; source: string }[] =>
   every(tree, n => has(n, 'type') && n.type === 'Svg').map(n => {
     const props = propsOf(n)
@@ -1038,6 +1040,45 @@ for (const [label, exits, last] of [
     await ui.unmount()
   })
 }
+
+test('name search lists ranked files, Enter goes to the picked one in the tree, the tree button brings back the filtered tree, and s lists what Claude touched', { timeoutMs: 20_000, options: { glyphs: 'plain' } }, async ($, on) => {
+  const root = '/home/k/proj'
+  const clock = world(on, { os: 'linux', env: { HOME: '/home/k' }, cwd: root, top: root, status: '## main\0', numstat: '', dirs: { [root]: [['hooks', 'dir'], ['tests', 'dir']], [`${root}/hooks`]: [['graph.ts', 'file'], ['register.tsx', 'file']], [`${root}/tests`]: [['graph.test.tsx', 'file']] } }, [])
+  await $.session.start({ cwd: root, surface: 'terminal', isInteractive: true })
+  await clock.settle()
+  const ui = await $.ui.mount({ plugin: 'sidetrack', surface: 'terminal', component: 'Pane', requestId: 'filetree', props: { ...paneProps(60), isFocused: true } })
+  await clock.settle()
+  await ui.input({ key: 'q', text: 'grts', kind: 'change' })
+  await clock.settle()
+  expect(termFound(await ui.drawn())).toEqual([`${root}/hooks/graph.ts`, `${root}/hooks/register.tsx`, `${root}/tests/graph.test.tsx`])
+  expect(JSON.stringify(treeRows(await ui.drawn()).rows[0])).toContain('3 files')
+  await ui.post({ key: 'j' }, { in: 'rows' })
+  await clock.settle()
+  expect(treeRows(await ui.drawn()).active).toBe(`find:${root}/hooks/register.tsx`)
+  await ui.input({ key: 'q', text: 'grts', kind: 'submit' })
+  await clock.settle()
+  const after = treeRows(await ui.drawn())
+  expect(termFound(await ui.drawn())).toEqual([])
+  expect(after.active).toBe(`${root}/hooks/register.tsx`)
+  expect(JSON.stringify(await ui.drawn())).toContain('"value":""')
+  await ui.input({ key: 'q', text: 'graph', kind: 'change' })
+  await clock.settle()
+  await ui.press({ key: 'search-view' })
+  await clock.settle()
+  expect(termFound(await ui.drawn())).toEqual([])
+  expect(treeRows(await ui.drawn()).rows.map(r => r.id)).toContain(`${root}/tests/graph.test.tsx`)
+  await ui.press({ key: 'search-view' })
+  await ui.input({ key: 'q', text: '', kind: 'change' })
+  await clock.settle()
+  await $.tool.call({ tool: 'Read', file_path: `${root}/tests/graph.test.tsx` })
+  await clock.settle()
+  await ui.post({ key: 's' }, { in: 'rows' })
+  await clock.settle()
+  const recents = treeRows(await ui.drawn()).rows
+  expect(termFound(await ui.drawn())[0]).toBe(`${root}/tests/graph.test.tsx`)
+  expect(JSON.stringify(recents[1]?.right)).toContain('read')
+  await ui.unmount()
+})
 
 test('icon colors set to git status: a file icon is grey or its git color, never its language color', { timeoutMs: 20_000, options: { glyphs: 'nerd', iconColors: 'git status' } }, async ($, on) => {
   const root = '/home/k/proj'
@@ -2047,21 +2088,21 @@ test('search matches relative paths, and a refresh or a click in the tree picks 
   const ui = await $.ui.mount({ plugin: 'sidetrack', surface: 'terminal', component: 'Pane', requestId: 'filetree', props: paneProps(60) })
   await ui.input({ key: 'q', text: 'src/a.ts', kind: 'change' })
   await clock.settle()
-  expect(await texts(ui)).toContain(`"id":"${root}/src/a.ts"`)
+  expect(await texts(ui)).toContain(`"id":"find:${root}/src/a.ts"`)
   await ui.input({ key: 'q', text: 'alpha', kind: 'change' })
   await clock.settle()
   w.dirs[`${root}/src`] = [['a.ts', 'file'], ['beta.ts', 'file']]
   await ui.press({ key: 'refresh' })
   await ui.input({ key: 'q', text: 'beta', kind: 'change' })
   await clock.settle()
-  expect(await texts(ui)).toContain(`"id":"${root}/src/beta.ts"`)
+  expect(await texts(ui)).toContain(`"id":"find:${root}/src/beta.ts"`)
   w.dirs[`${root}/src`] = [['a.ts', 'file'], ['beta.ts', 'file'], ['gamma.ts', 'file']]
   await clock.advance(2_500)
   await ui.post({ key: 'down' }, { in: 'rows' })
   await clock.settle()
   await ui.input({ key: 'q', text: 'gamma', kind: 'change' })
   await clock.settle()
-  expect(await texts(ui)).toContain(`"id":"${root}/src/gamma.ts"`)
+  expect(await texts(ui)).toContain(`"id":"find:${root}/src/gamma.ts"`)
   await ui.unmount()
 })
 
@@ -2498,10 +2539,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(JSON.stringify(drawn)).not.toContain('Keyboard shortcuts')
     expect(JSON.stringify(drawn)).not.toContain('grep:')
     expect(ran.some(a => a.includes('grep'))).toBe(false)
-    if (surface === 'desktop') {
-      expect(deskRows(drawn)).toEqual([`${root}/why?.md`])
-      expect(svgs(drawn).map(x => x.alt)).toContain('search file contents off')
-    } else expect(treeRows(drawn).rows.map(r => r.id).filter(id => id.startsWith(root))).toEqual([`${root}/why?.md`])
+    expect(surface === 'desktop' ? deskFound(drawn) : termFound(drawn)).toEqual([`${root}/why?.md`])
     await ui.unmount()
   })
 
@@ -2531,23 +2569,22 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(JSON.stringify(on1)).toContain('"value":"alpha"')
     expect(ran.some(a => a.includes('grep') && a.includes('alpha'))).toBe(true)
     if (surface === 'desktop') {
-      expect(svgs(on1).map(x => x.alt)).toContain('search file contents on')
-      expect(JSON.stringify(on1)).toContain('"placeholder":"Search file contents..."')
+      expect(JSON.stringify(on1)).toContain('"placeholder":"Search inside files..."')
       await tap(ui, 'content')
     } else {
-      expect(JSON.stringify(on1)).toContain('"placeholder":"search contents"')
+      expect(JSON.stringify(on1)).toContain('"placeholder":"search inside files"')
       expect(await ui.find({ key: 'search-content' })).toBeDefined()
       await ui.press({ key: 'search-content' })
     }
     await settle()
     const off = await ui.drawn()
     expect(JSON.stringify(off)).not.toContain(hit)
+    expect(JSON.stringify(off)).toContain(surface === 'desktop' ? '"placeholder":"Search file names..."' : '"placeholder":"search file names"')
     if (surface === 'desktop') {
-      expect(svgs(off).map(x => x.alt)).toContain('search file contents off')
-      expect(deskRows(off)).toEqual([`${root}/alpha.md`])
+      expect(deskFound(off)).toEqual([`${root}/alpha.md`])
       await tap(ui, 'content')
     } else {
-      expect(treeRows(off).rows.map(r => r.id).filter(id => id.startsWith(root))).toEqual([`${root}/alpha.md`])
+      expect(termFound(off)).toEqual([`${root}/alpha.md`])
       await ui.press({ key: 'search-content' })
     }
     await settle()
@@ -2786,7 +2823,7 @@ test('the ignore setting keeps ignored tracked files out of the git search index
   const ui = await $.ui.mount({ plugin: 'sidetrack', surface: 'terminal', component: 'Pane', requestId: 'filetree', props: paneProps(60) })
   await ui.input({ key: 'q', text: 'k', kind: 'change' })
   await clock.settle()
-  expect(await texts(ui)).toContain(`"id":"${root}/src/k.ts"`)
+  expect(await texts(ui)).toContain(`"id":"find:${root}/src/k.ts"`)
   await ui.unmount()
 })
 
@@ -3483,11 +3520,11 @@ test('terminal: i scopes search to the folder under the cursor, × drops it, and
   expect(JSON.stringify(await ui.drawn())).toContain('"label":"in src/ × "')
   await ui.input({ key: 'q', text: 'a', kind: 'change' })
   await clock.settle()
-  expect(await ids()).toEqual(['src', 'src/a.ts'])
+  expect(termFound(await ui.drawn())).toEqual([`${root}/src/a.ts`])
   await ui.press({ key: 'scope-chip' })
   await clock.settle()
   expect(JSON.stringify(await ui.drawn())).not.toContain('in src/')
-  expect(await ids()).toContain('README.md')
+  expect(termFound(await ui.drawn())).toContain(`${root}/README.md`)
   await ui.unmount()
 })
 
@@ -3728,7 +3765,7 @@ test('a slow index does not eat the regex time budget: the sole match at the end
   await clock.settle()
   await new Promise(r => setTimeout(r, 200))
   await clock.settle()
-  expect(treeRows(await ui.drawn()).rows.map(r => r.id)).toEqual([`${root}/target.md`])
+  expect(termFound(await ui.drawn())).toEqual([`${root}/target.md`])
   await ui.unmount()
 })
 
@@ -4999,7 +5036,7 @@ for (const [surface, env, want] of [
   })
 }
 
-test('name search highlights the matched characters for plain, case and regex search, on the terminal and the desktop', { timeoutMs: 20_000 }, async ($, on) => {
+test('name search highlights the characters it matched for plain, case and regex search, on the terminal and the desktop', { timeoutMs: 20_000 }, async ($, on) => {
   const root = '/home/k/proj'
   const clock = world(on, { os: 'linux', env: { HOME: '/home/k' }, cwd: root, top: root, status: '## main\0', numstat: '', dirs: { [root]: [['src', 'dir']], [`${root}/src`]: [['xAbyab.ts', 'file'], ['zz.ts', 'file']] } }, [])
   await $.session.start({ cwd: root, surface: 'terminal', isInteractive: true })
@@ -5007,12 +5044,12 @@ test('name search highlights the matched characters for plain, case and regex se
   const ui = await $.ui.mount({ plugin: 'sidetrack', surface: 'terminal', component: 'Pane', requestId: 'filetree', props: paneProps(60) })
   await clock.settle()
   const lit = async () => {
-    const row = treeRows(await ui.drawn()).rows.find(r => r.id === `${root}/src/xAbyab.ts`)
-    return row?.left.slice(3).filter(s => s.c === 'ansi256(4)' && s.b).map(s => s.t) ?? []
+    const row = treeRows(await ui.drawn()).rows.find(r => r.id === `find:${root}/src/xAbyab.ts`)
+    return row?.left.slice(2).filter(s => s.c === 'ansi256(4)' && s.b).map(s => s.t) ?? []
   }
   await ui.input({ key: 'q', text: 'ab', kind: 'change' })
   await clock.settle()
-  expect(await lit()).toEqual(['Ab', 'ab'])
+  expect(await lit()).toEqual(['Ab'])
   await ui.post({ key: 'c' }, { in: 'rows' })
   await clock.settle()
   expect(await lit()).toEqual(['ab'])
@@ -5873,7 +5910,7 @@ test('desktop (#47): a key that reaches every Client in the pane moves the curso
       if (!n || typeof n !== 'object') return
       const o = n as { props?: { key?: unknown; backgroundColor?: unknown } }
       const key = o.props?.key
-      if (typeof key === 'string' && key.startsWith('row:') && o.props?.backgroundColor) lit.push(key.slice(4))
+      if (typeof key === 'string' && /^(found-)?row:/.test(key) && o.props?.backgroundColor) lit.push(key.replace(/^(found-)?row:/, ''))
       Object.values(n).forEach(walk)
     }
     walk(await ui.drawn())
@@ -5918,7 +5955,7 @@ test('desktop: a click on the root header leaves the keys with the tree rows', {
       if (!n || typeof n !== 'object') return
       const o = n as { props?: { key?: unknown; backgroundColor?: unknown } }
       const key = o.props?.key
-      if (typeof key === 'string' && key.startsWith('row:') && o.props?.backgroundColor) lit.push(key.slice(4))
+      if (typeof key === 'string' && /^(found-)?row:/.test(key) && o.props?.backgroundColor) lit.push(key.replace(/^(found-)?row:/, ''))
       Object.values(n).forEach(walk)
     }
     walk(await ui.drawn())

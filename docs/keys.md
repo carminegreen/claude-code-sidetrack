@@ -14,7 +14,7 @@ With the tree focused:
 j / k:        move down / up; k on the first row selects the root; with entries marked, move only the cursor and keep the marks
 h / l:        collapse or go to parent / expand
 o, Enter:     open a file or toggle a folder
-s:            focus search
+s:            focus search; with an empty field, the files touched this session are listed, newest first
 i:            search in the folder under the cursor (Backspace on an empty query or × drops it)
 z:            jump to a folder: opens on the 10 most recent folders, then ranks zoxide style as you type fragments in order (the last one in the folder name), up/down to pick, Enter re-roots and moves Claude there with /cd where the app has /cd (the Desktop app does not), Esc cancels
 c / r:        search: match case / regular expression (Aa / .* in the search row)
