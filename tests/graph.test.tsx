@@ -35,11 +35,11 @@ const PANE = {
   },
 } as const
 
-test('a merge forks right and joins back', async () => {
+test('a merge forks right and joins back', () => {
   expect(text(graphRows(parseLog(LOG)))).toEqual(['●─╮', '│ ●', '● │', '●─╯'])
 })
 
-test('an octopus merge crosses its own fork', async () => {
+test('an octopus merge crosses its own fork', () => {
   const rows = graphRows([
     { hash: 'm', parents: ['a', 'b', 'c'] },
     { hash: 'c', parents: ['a'] },
@@ -49,14 +49,14 @@ test('an octopus merge crosses its own fork', async () => {
   expect(text(rows)).toEqual(['●─┬─╮', '│ │ ●', '│ ● │', '●─┴─╯'])
 })
 
-test('decorations become labels', async () => {
+test('decorations become labels', () => {
   const [merge, feature, fix] = parseLog(LOG)
   expect(labels(merge?.refs ?? [])).toEqual([{ name: 'origin & main', kind: 'head' }])
   expect(feature?.refs).toEqual([{ name: 'feature', kind: 'local' }])
   expect(fix?.refs).toEqual([{ name: 'v1', kind: 'tag' }])
 })
 
-test('only a remote HEAD goes unlabelled, not a branch or tag named like one', async () => {
+test('only a remote HEAD goes unlabelled, not a branch or tag named like one', () => {
   const [commit] = parseLog(
     record('a', '', 'HEAD -> refs/heads/main, refs/heads/fix/HEAD, tag: refs/tags/rel/HEAD, refs/remotes/origin/HEAD', 'Refs'),
   )
@@ -67,7 +67,7 @@ test('only a remote HEAD goes unlabelled, not a branch or tag named like one', a
   ])
 })
 
-test('separator bytes in an author or subject stay in their field', async () => {
+test('separator bytes in an author or subject stay in their field', () => {
   const [commit, ...rest] = parseLog(['a', '', '', 'Ev\x1fil', '04/11/26 10:30', 'evil\x1edeadbeef\x1fx'].join('\0') + '\n')
   expect(rest).toEqual([])
   expect(commit?.author).toBe('Ev il')

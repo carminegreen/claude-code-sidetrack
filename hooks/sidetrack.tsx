@@ -12,11 +12,9 @@ const POLL_MS = 3000
 const FILETREE_PANE = 'filetree'
 const START_FALLBACK_MS = 2500
 
-// A flag or a skin-toned emoji is several code points, so the author is cut between graphemes.
 const GRAPHEMES = new Intl.Segmenter()
 
 const LANE_COLORS = ['#4c9ee8', '#e8a33d', '#5fb760', '#c96fd8', '#e0605a', '#3fbfb0', '#d8c14a', '#8b8fea']
-// Theme keys, picked by hue (gold, green, purple, teal), so labels stay readable on a light or colour-blind theme.
 const REF_COLORS: Record<RefKind, string> = { head: 'warning', local: 'success', remote: 'merged', tag: 'planMode' }
 
 const graph = atom({ plugin: 'sidetrack', key: 'graph' } as const, { branch: '', today: '', commits: [] } as Graph, {
@@ -26,17 +24,13 @@ const graph = atom({ plugin: 'sidetrack', key: 'graph' } as const, { branch: '',
 let isOpenedAtStart = false
 let isPolling = false
 
-// No `focus`: at start the pane must not take the keys or another mod's front tab.
 async function openOnce($: EngineInterface) {
   if (isOpenedAtStart) return
   isOpenedAtStart = true
   const opened = await $.ui.open({ id: PANE, title: TITLE })
-  // Undrawn, under 144 columns or in a -p run, the pane is filled by the first poll that finds it shown.
   if (opened.isPlaced) await refresh($, true)
 }
 
-// The engine refuses a whole tree past 20,000 nodes, each element and each string one: the header takes 7, a row 9,
-// two more a lane run and three a label. A wide history or a pile of tags drops its oldest rows instead.
 function rowsThatFit(commits: readonly Commit[], rows: readonly Run[][]): number {
   let nodes = 7
   for (const [i, commit] of commits.entries()) {
@@ -50,7 +44,6 @@ async function paneOf($: EngineInterface) {
   return (await $.ui.panes()).find(pane => pane.id === PANE)
 }
 
-// A command that cannot start, such as git or date not installed, reads as a failed run instead of throwing.
 function run($: EngineInterface, argv: string[]) {
   return $.process.run(argv).catch((error: unknown) => ({
     exitCode: -1,
@@ -62,16 +55,12 @@ function run($: EngineInterface, argv: string[]) {
 async function refresh($: EngineInterface, force = false) {
   if (!force && !(await paneOf($))?.isShown) return
 
-  // Without a commit-graph, as after a fresh clone, --date-order walks the whole history: 1.2 s on 300k commits.
-  // So git log runs only once a ref, HEAD or the day changed.
   const [refs, head, today] = await Promise.all([
     run($, ['git', 'show-ref', '--head']),
-    // Not --short: it answers heads/<name> when a tag shares the branch's name.
     run($, ['git', 'symbolic-ref', '-q', 'HEAD']),
     run($, ['date', '+%d/%m/%y']),
   ])
   const stamp = `${refs.stdout}${refs.stderr}${head.stdout}${today.stdout}`
-  // Kept beside the graph, not in the module: a /clear starts the session's state over, and the graph must be read again.
   if (!force && stamp === (await read($, graph)).stamp) return
 
   const log = await run($, [
@@ -80,14 +69,11 @@ async function refresh($: EngineInterface, force = false) {
     '--branches',
     '--remotes',
     '--tags',
-    // Must precede HEAD: skips it while unborn, in a new repository or on an orphan branch.
     '--ignore-missing',
     'HEAD',
     '--date-order',
     '--decorate=full',
-    // log.showSignature in the person's config would print each verification into stdout.
     '--no-show-signature',
-    // i18n.logOutputEncoding in the person's config would re-encode names and subjects that are read back as UTF-8.
     '--encoding=UTF-8',
     `-n${LIMIT}`,
     '--date=format-local:%d/%m/%y %H:%M',
@@ -98,7 +84,6 @@ async function refresh($: EngineInterface, force = false) {
   if (log.exitCode !== 0 || commits.length === 0) {
     const error =
       log.exitCode === 0 ? 'No commits yet' : printable(log.stderr.trim().split('\n')[0] ?? '') || `git log: exit ${log.exitCode}`
-    // A timeout or a killed git leaves the refs as they were, so a failed log keeps no stamp and is tried again on the next poll.
     await update($, graph, () => ({ branch: '', today: '', commits: [], error, stamp: log.exitCode === 0 ? stamp : undefined }))
     return
   }
@@ -108,11 +93,8 @@ async function refresh($: EngineInterface, force = false) {
 
 let openAtStart = true
 
-// One module may hook session.start once, so filetree's session.start calls this.
 export async function startGraph($: EngineInterface): Promise<void> {
-  // Immediate: the graph is most worth watching while Claude works, so the toggle must not wait for the turn to end.
   await $.command.register({ name: 'sidetrack', description: 'Show or hide the git graph pane', immediate: true })
-  // A git log slower than the period, as in a large history without a commit-graph, is not run twice at once.
   $.clock.every(POLL_MS, () => {
     if (isPolling) return
     isPolling = true
@@ -126,7 +108,6 @@ export async function startGraph($: EngineInterface): Promise<void> {
 export const register: Register = (on, options) => {
   openAtStart = options?.openAtStart !== 'off'
 
-  // Tabs follow open order: ours opens right after filetree's so filetree stays the first tab.
   on('ui.open', { id: FILETREE_PANE }, async ($, e, next) => {
     const opened = await next(e)
     if (openAtStart) $.clock.after(0, () => void openOnce($).catch(() => {}))
@@ -135,7 +116,6 @@ export const register: Register = (on, options) => {
   }).catch((_$, e, next) => next(e))
 
   on('command.run', { command: 'sidetrack' }, async $ => {
-    // The person's own toggle wins over the open at start still pending.
     isOpenedAtStart = true
     const pane = await paneOf($)
     if (pane?.isShown) {
@@ -160,7 +140,6 @@ export const register: Register = (on, options) => {
     const showAuthor = width >= 64
     const showDate = width >= 40
 
-    // dir: a row reads by its first strong letter, so a Hebrew or Arabic subject would mirror the lanes.
     return (
       <Box flexDirection="column">
         <Box flexDirection="row">
@@ -182,14 +161,14 @@ export const register: Register = (on, options) => {
             .join(' ')
 
           return (
-            <Box flexDirection="row">
+            <Box key={commit.hash} flexDirection="row">
               <Box flexGrow={1} flexShrink={1}>
                 <Text wrap="truncate-end" dir="ltr">
-                  {(rows[i] ?? []).map(run => (
-                    <Text color={run.lane < 0 ? undefined : LANE_COLORS[run.lane % LANE_COLORS.length]}>{run.text}</Text>
+                  {(rows[i] ?? []).map((run, j) => (
+                    <Text key={`run-${j}`} color={run.lane < 0 ? undefined : LANE_COLORS[run.lane % LANE_COLORS.length]}>{run.text}</Text>
                   ))}{' '}
                   {labels(commit.refs).map(ref => (
-                    <Text color={REF_COLORS[ref.kind]} weight={ref.kind === 'head' ? 'bold' : undefined}>
+                    <Text key={`ref-${ref.name}`} color={REF_COLORS[ref.kind]} weight={ref.kind === 'head' ? 'bold' : undefined}>
                       {ref.name}{' '}
                     </Text>
                   ))}

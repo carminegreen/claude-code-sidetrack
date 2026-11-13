@@ -13,11 +13,8 @@ const REF_PREFIXES: [string, RefKind][] = [
   ['tag: refs/tags/', 'tag'],
 ]
 
-// %s is the whole first paragraph. No pane is this wide, and the engine draws 100,000 characters a tree in all:
-// one subject a paragraph long left every row below it blank.
 const SUBJECT_MAX = 300
 
-// git refuses NUL in a commit and keeps newlines out of %an and %s, so no author or subject can split a field or a commit.
 export const LOG_FORMAT = '%H%x00%P%x00%D%x00%an%x00%ad%x00%s'
 
 export function parseLog(stdout: string): Commit[] {
@@ -39,7 +36,6 @@ export function parseLog(stdout: string): Commit[] {
     })
 }
 
-// One control character in a commit, such as colour codes pasted from a terminal, makes the engine refuse the whole pane.
 export function printable(text: string): string {
   return text.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
 }
@@ -54,13 +50,11 @@ function parseRefs(text: string): Ref[] {
       if (!match) return []
       const [prefix, kind] = match
       const name = printable(part.slice(prefix.length))
-      // A remote's HEAD only points at its default branch, which carries its own label.
       if (kind === 'remote' && /^[^/]+\/HEAD$/.test(name)) return []
       return [{ name, kind }]
     })
 }
 
-// A local branch and its remote twin on the same commit share one label: "origin & main".
 export function labels(refs: readonly Ref[]): Ref[] {
   const isLocal = (ref: Ref) => ref.kind === 'head' || ref.kind === 'local'
   const branchOf = (ref: Ref) => ref.name.slice(ref.name.indexOf('/') + 1)
@@ -75,7 +69,6 @@ export function labels(refs: readonly Ref[]): Ref[] {
   })
 }
 
-// shortcut: lanes freed mid-graph leave a gap instead of shifting the lanes to their right left; add compaction if wide histories get unreadable.
 export function graphRows(commits: readonly Pick<Commit, 'hash' | 'parents'>[]): Run[][] {
   const lanes: Lane[] = []
   let nextColor = 0
@@ -145,7 +138,6 @@ function toRuns(chars: readonly Cell[]): Run[] {
   const runs: Run[] = []
   for (const { ch, color } of chars) {
     const last = runs[runs.length - 1]
-    // A blank shows no colour, so it joins the run before it: half the tree nodes on a wide graph.
     if (last && (last.lane === color || ch === ' ')) last.text += ch
     else runs.push({ text: ch, lane: color })
   }
