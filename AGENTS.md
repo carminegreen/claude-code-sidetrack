@@ -22,25 +22,16 @@
 ## Tests
 
 - Run tests with `claude plugin test .`, never `bun test`: `claude-code/testing` only exists inside that harness, so bun fails to resolve it
-- A PR keeps the version of the release branch it targets, set when that branch was cut, so one release never carries two bumps; `.githooks/pre-push` and the version-bump workflow refuse a branch that does not
 
 ## Branches
 
-- Two release branches exist at all times, both cut from `main` after each release:
-  - `release/<next patch>`, now `release/0.3.1`: fixes and small changes
-  - `release/<next minor>.0`, now `release/0.4.0`: new features, new settings and behaviour changes
-- A release branch is named after the version it carries; the version check refuses a `release/*` branch whose `.claude-plugin/plugin.json` says otherwise
-- Target every PR at one of them, never at `main`: a fix or small change goes to the patch branch, anything else to the feature branch; when unsure, the feature branch
-- The commit that cuts a release branch sets its version in `.claude-plugin/plugin.json` and the README badge (`Clean(release): open 0.7.1`); PRs keep the version of the branch they target, and the version-bump workflow and `.githooks/pre-push` refuse anything else
-- After every merge into the patch branch, merge the patch branch into the feature branch with a merge commit, so fixes reach the next minor
-- `main` only takes release merges and an emergency hotfix; a hotfix is merged into both release branches right after
+- `master` is the main branch. Every change starts on its own branch cut from `master`, such as `fix/<what>` or `feat/<what>`
+- A branch goes into `master` once `claude plugin test .` passes locally and its CI is green, through a pull request or a merge
+- A branch never changes the version: it keeps `master`'s version in `.claude-plugin/plugin.json` and the README badge, and `.githooks/pre-push` and the version-bump workflow refuse one that does; after a release, merge `master` into the branch
 
 ## Releases
 
-- Release at most once a day, right after the filetree repo keeper's morning run (06:33 Europe/Brussels); never release right after a merge
-- Everything merged since the last release ships in the next morning release; once today's release is out, new merges wait for tomorrow's
-- Only an emergency hotfix ships the same day: a security issue, a bug that breaks things badly, or a UI that is badly broken
-- A release is a PR from a release branch into `main`, merged with a merge commit; sign a `v<version>` tag on that merge and publish the GitHub release from it. The keeper has no signing key, so it hands the release to an agent on a machine that has one
-- After a patch release (v0.7.1): delete `release/0.7.1`, cut `release/0.7.2` from `main`, and merge `main` into `release/0.8.0`
-- After a feature release (v0.8.0): delete both release branches, then cut `release/0.8.1` and `release/0.9.0` from `main`
-- The release notes cover every PR merged since the last release, including versions that never got their own release
+- Release when the owner decides; there is no schedule
+- A release is a commit on `master` that sets the new version in `.claude-plugin/plugin.json` and the README badge (`chore: release 0.3.1`): the patch number for fixes only, the minor number when a feature, a setting or a behaviour changed
+- Tag that commit with an annotated `v<version>` tag, push it, and publish the GitHub release from the tag
+- The release notes cover every change merged into `master` since the last release

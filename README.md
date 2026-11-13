@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Claude_Code-%E2%89%A5_2.1.306-D97757?logo=claude&logoColor=fff" alt="Claude Code 2.1.306 or newer">
-  <img src="https://img.shields.io/badge/version-0.4.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/type-mod-6f42c1" alt="Claude Code mod">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
 </p>
@@ -180,14 +180,9 @@ On macOS, `brew install --cask font-symbols-only-nerd-font`. Start a new session
 
 ## Contributing
 
-Open pull requests against a release branch, not `main`:
+Work on a branch cut from `master` and open a pull request against `master`. Leave the version alone: it changes only when a release is cut.
 
-- Fixes: the patch branch, such as `release/0.3.1`
-- Features: the minor branch, such as `release/0.4.0`
-
-Keep the version of that branch.
-
-Turn on the git hooks once per clone. The pre-commit hook runs the fast checks in seconds: grep rules, types, oxlint, and `claude plugin validate` when the manifests change. The pre-push hook checks the version against the release branch and runs the plugin tests:
+Turn on the git hooks once per clone. The pre-commit hook runs the fast checks in seconds: grep rules, types, oxlint, and `claude plugin validate` when the manifests change. The pre-push hook checks that the version matches `master` and runs the plugin tests:
 
 ```bash
 git config core.hooksPath .githooks

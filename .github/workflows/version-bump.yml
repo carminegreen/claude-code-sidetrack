@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Version follows the release branch and matches the README badge
+      - name: Version stays at the base branch's and matches the README badge
         env:
           BASE: ${{ github.base_ref }}
         run: sh scripts/ci/version.sh pr "$BASE"

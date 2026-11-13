@@ -5,7 +5,7 @@ unset $(git rev-parse --local-env-vars)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cd "$work"
-git init -q -b main .
+git init -q -b master .
 [ "$(git rev-parse --absolute-git-dir)" = "$(pwd -P)/.git" ] || { echo "version-test: not in its own scratch repo" >&2; exit 1; }
 g() { git -c user.email=t@t -c user.name=t -c commit.gpgsign=false -c tag.gpgsign=false "$@"; }
 mkdir .claude-plugin
@@ -22,30 +22,26 @@ expect() {
   [ "$got" = "$want" ] || { echo "version-test: $* gave $got, wanted $want" >&2; fails=1; }
 }
 v070=$(at 0.7.0); g tag v0.7.0
-v071=$(at 0.7.1)
-v072=$(at 0.7.2)
-v080=$(at 0.8.0)
-expect pass push refs/heads/release/0.7.1 "$v071"
-expect fail push refs/heads/release/0.7.1 "$v070"
-remote release/0.7.1 "$v071"
-expect pass push refs/heads/release/0.7.1 "$v071"
-expect fail push refs/heads/release/0.7.1 "$v072"
-expect fail push refs/heads/release/0.7.3 "$v072"
-remote release/0.8.0 "$v080"
-expect pass push refs/heads/fix/a "$v071"
-expect pass push refs/heads/feat/b "$v080"
-expect fail push refs/heads/fix/a "$v072"
-git checkout -q "$v071"
-expect pass pr release/0.7.1
-expect fail pr release/0.8.0
-expect pass pr main
+remote master "$v070"
+expect pass push refs/heads/master "$v070"
+expect pass push refs/heads/fix/a "$v070"
 git checkout -q "$v070"
-expect fail pr main
-remote release/0.8.1 "$v072"
-v081=$(at 0.8.1)
-expect pass push refs/heads/release/0.8.1 "$v081"
-expect fail push refs/heads/release/0.8.1 "$v080"
-git checkout -q "$v081"
-expect pass pr release/0.8.1
+expect pass pr master
+v071=$(at 0.7.1)
+expect fail push refs/heads/fix/a "$v071"
+expect fail pr master
+expect pass push refs/heads/master "$v071"
+g tag v0.7.1
+remote master "$v071"
+expect fail push refs/heads/feat/b "$v070"
+expect pass push refs/heads/feat/b "$v071"
+expect pass pr master
+v069=$(at 0.6.9)
+expect fail push refs/heads/master "$v069"
+printf '{"version": "0.7.1"}\n' > .claude-plugin/plugin.json
+printf 'version-0.7.0-blue\n' > README.md
+g add -A && g commit -qm badge
+expect fail push refs/heads/master "$(git rev-parse HEAD)"
+expect fail pr master
 exit "$fails"
 

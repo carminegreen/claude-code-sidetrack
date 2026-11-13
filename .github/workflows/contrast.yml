@@ -3,7 +3,6 @@ name: contrast
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'release/**']
     paths: ['hooks/**', 'scripts/contrast.ts', '.github/workflows/contrast.yml']
   pull_request:
     paths: ['hooks/**', 'scripts/contrast.ts', '.github/workflows/contrast.yml']

@@ -3,7 +3,6 @@ name: lint
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'release/**']
     paths: ['hooks/**', 'tests/**', 'types/**', 'scripts/**', 'tsconfig*.json', '.oxlintrc.json', '.github/workflows/**']
   pull_request:
     paths: ['hooks/**', 'tests/**', 'types/**', 'scripts/**', 'tsconfig*.json', '.oxlintrc.json', '.github/workflows/**']
