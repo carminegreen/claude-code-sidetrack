@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-%E2%89%A5_2.1.306-D97757?logo=claude&logoColor=fff" alt="Claude Code 2.1.306 or newer">
   <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/type-mod-6f42c1" alt="Claude Code mod">
-  <img src="https://img.shields.io/badge/license-MIT_%2B_BSD--3-green" alt="License">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
 </p>
 
 <p align="center">
@@ -182,6 +182,6 @@ The same checks run on macOS, Windows and Linux in CI on every push that touches
 
 ## License
 
-[MIT](LICENSE) for the file tree, [BSD-3-Clause](LICENSE-sidetrack) for the git graph (`hooks/sidetrack.tsx`, `hooks/graph.ts`). The treemap labels use glyphs from [Terminus Font](https://terminus-font.sourceforge.net/) by Dimitar Zhekov (Lat2-Terminus16, SIL Open Font License 1.1).
+[MIT](LICENSE). The treemap labels use glyphs from [Terminus Font](https://terminus-font.sourceforge.net/) by Dimitar Zhekov (Lat2-Terminus16), under the SIL Open Font License 1.1, whose text is at the end of [LICENSE](LICENSE).
 
 *filetree is inspired by its author's Omarchy app [FileBlade](https://github.com/data-goblin/fileblade)*
