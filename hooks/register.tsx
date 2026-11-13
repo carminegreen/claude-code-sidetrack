@@ -3915,6 +3915,11 @@ export const register: Register = (on, options) => {
     const glow = (color: string, id: string) => (hovered === id ? lighten(color) : color)
     const flagOf = { case: 'searchCase', regex: 'searchRegex', content: 'searchContent' } as const
     const nameQuery = !t.searchContent && Boolean(t.query.trim()) && !zjump.on
+    const arrows = (input: RenderElement) => listing ? [
+      <Box key="q-up-box" height={0} overflow="hidden"><Button key="q-up" plain label="up" onPress={() => void foundNav($, 'up', false, e.surface)} /></Box>,
+      input,
+      <Box key="q-down-box" height={0} overflow="hidden"><Button key="q-down" plain label="down" onPress={() => void foundNav($, 'down', false, e.surface)} /></Box>,
+    ] : input
     const modeToggle = () => {
       const look = (active: boolean) => (active ? { color: desk ? accentText : theme.accent, bold: true } : desk ? mutedText : { dimColor: true })
       const words = (
@@ -5041,13 +5046,15 @@ export const register: Register = (on, options) => {
                 <Box key="jump-up-box" height={0} overflow="hidden"><Button key="jump-up" plain label="up" onPress={() => void jumpKey($, 'up')} /></Box>
                 <Input key="jump" autoFocus placeholder="folder name…" value={zjump.query} onInput={(v: string) => void jumpInput($, v)} onSubmit={() => void jumpKey($, 'return')} />
                 <Box key="jump-down-box" height={0} overflow="hidden"><Button key="jump-down" plain label="down" onPress={() => void jumpKey($, 'down')} /></Box>
-              </> : <Input
-                key="q"
-                placeholder={t.searchContent ? 'Search inside files...' : 'Search file names...'}
-                value={t.query}
-                onInput={onQuery}
-                onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
-              />}
+              </> : arrows(
+                <Input
+                  key="q"
+                  placeholder={t.searchContent ? 'Search inside files...' : 'Search file names...'}
+                  value={t.query}
+                  onInput={onQuery}
+                  onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
+                />,
+              )}
             </Box>
             {t.query ? <Button key="clear" plain dimColor label="×" onPress={() => void search($, '')} /> : null}
             <Box flexShrink={0} flexDirection="row" gap={2} marginLeft={1} marginRight={1}>
@@ -5066,14 +5073,16 @@ export const register: Register = (on, options) => {
                 <Box key="jump-up-box" height={0} overflow="hidden"><Button key="jump-up" plain label="up" onPress={() => void jumpKey($, 'up')} /></Box>
                 <Input key="jump" autoFocus placeholder="folder name…" value={zjump.query} onInput={(v: string) => void jumpInput($, v)} onSubmit={() => void jumpKey($, 'return')} />
                 <Box key="jump-down-box" height={0} overflow="hidden"><Button key="jump-down" plain label="down" onPress={() => void jumpKey($, 'down')} /></Box>
-              </> : <Input
-                key="q"
-                placeholder={t.searchContent ? 'search inside files' : 'search file names'}
-                submitLabel="go"
-                value={t.query}
-                onInput={onQuery}
-                onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
-              />}
+              </> : arrows(
+                <Input
+                  key="q"
+                  placeholder={t.searchContent ? 'search inside files' : 'search file names'}
+                  submitLabel="go"
+                  value={t.query}
+                  onInput={onQuery}
+                  onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
+                />,
+              )}
             </Box>
             {t.query ? <Button key="clear" plain dimColor label={unicode ? '×' : '\u{ea76}'} onPress={() => void search($, '')} /> : null}
             <Box flexShrink={0} flexDirection="row" gap={1} marginLeft={1}>
