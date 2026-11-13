@@ -27,6 +27,8 @@ const GROUPS: readonly ShortcutGroup[] = [
     title: 'Files and actions',
     keys: [
       { key: 'd', label: 'diff' },
+      { key: 'e', label: 'show in the file manager' },
+      { key: 'right-click', label: 'actions menu' },
       { key: 'click', label: 'select one row' },
       { key: 'ctrl+click', label: 'add or drop a row; alt+click on macOS' },
       { key: 'shift+click', label: 'select the range from the anchor' },

@@ -8,6 +8,7 @@ import { CLEAN, POLICY, POSTER } from '../hooks/peek'
 import { compileRegex, compileSpans, toEre } from '../hooks/regex'
 import { fileRefs, markdownSplit } from '../hooks/refs'
 import { DESK, ICONS } from '../hooks/svg'
+import { HUES } from '../hooks/icons'
 import { jumpMatch, rankJump, terms } from '../hooks/jump'
 import { shellPaths, workIgnored } from '../hooks/work'
 import { age, ancestorsOf, badPattern, stamp, formatSize, replaceChildren, toNodes } from '../hooks/tree'
@@ -1009,7 +1010,49 @@ test('follow off: reads, writes and folders Claude opens above the view never mo
   await ui.unmount()
 })
 
-test('watches only git metadata, copies paths, clears search, Home and End', { timeoutMs: 20_000 }, async ($, on) => {
+for (const [label, exits, last] of [
+  ['the file manager shows it', {}, ['dbus-send', '--session', '--print-reply', '--dest=org.freedesktop.FileManager1', '--type=method_call', '/org/freedesktop/FileManager1', 'org.freedesktop.FileManager1.ShowItems', 'array:string:file:///home/k/my%20proj/b%2Cc.txt', 'string:']],
+  ['without a FileManager1 service the folder opens', { 'dbus-send': [1, 'org.freedesktop.DBus.Error.ServiceUnknown'] as [number, string] }, ['sh', '-c', LINUX_LAUNCH, 'sh', 'sh', '-c']],
+] as const) {
+  test(`linux: e and the right-click menu show a file in the file manager: ${label}`, { timeoutMs: 20_000 }, async ($, on) => {
+    const ran: Ran = []
+    const root = '/home/k/my proj'
+    const clock = world(on, { os: 'linux', env: { HOME: '/home/k' }, cwd: root, top: root, dirs: { [root]: [['b,c.txt', 'file']] }, status: '## main\0', numstat: '', exits }, ran)
+    await $.session.start({ cwd: root, surface: 'terminal', isInteractive: true })
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'sidetrack', surface: 'terminal', component: 'Pane', requestId: 'filetree', props: paneProps(60) })
+    await clock.settle()
+    await ui.post({ copy: `${root}/b,c.txt` }, { in: 'rows' })
+    await clock.settle()
+    const item = treeRows(await ui.drawn()).rows.find(r => r.id === 'menu:e')
+    expect(item?.left.map(x => x.t).join('')).toContain('Show in file manager')
+    await ui.post({ press: 'menu:e' }, { in: 'rows' })
+    await clock.settle()
+    const shown = (cmd: string[]) => cmd[0] === 'dbus-send' || (cmd[0] === 'sh' && cmd.at(-1) === root)
+    expect(ran.filter(shown).at(-1)?.slice(0, last.length)).toEqual([...last])
+    const before = ran.filter(shown).length
+    await ui.post({ key: 'e' }, { in: 'rows' })
+    await clock.settle()
+    expect(ran.filter(shown).length).toBeGreaterThan(before)
+    expect(ran.some(cmd => cmd[0] === 'toast')).toBe(false)
+    await ui.unmount()
+  })
+}
+
+test('icon colors set to git status: a file icon is grey or its git color, never its language color', { timeoutMs: 20_000, options: { glyphs: 'nerd', iconColors: 'git status' } }, async ($, on) => {
+  const root = '/home/k/proj'
+  const clock = world(on, { os: 'linux', env: { HOME: '/home/k' }, cwd: root, top: root, dirs: { [root]: [['new.ts', 'file'], ['old.rs', 'file']] }, status: '## main\0?? new.ts\0', numstat: '' }, [])
+  await $.session.start({ cwd: root, surface: 'terminal', isInteractive: true })
+  await clock.settle()
+  const ui = await $.ui.mount({ plugin: 'sidetrack', surface: 'terminal', component: 'Pane', requestId: 'filetree', props: paneProps(60) })
+  await clock.settle()
+  const rows = treeRows(await ui.drawn()).rows
+  expect(rows.find(r => r.id === `${root}/new.ts`)?.left[2]).toMatchObject({ c: 'ansi256(2)' })
+  expect(rows.find(r => r.id === `${root}/old.rs`)?.left[2]?.c).not.toBe(HUES.dark.orange)
+  await ui.unmount()
+})
+
+test('watches only git metadata, copies paths from the right-click menu, clears search, Home and End', { timeoutMs: 20_000 }, async ($, on) => {
   const ran: Ran = []
   const mtimes: Record<string, number> = {}
   const root = '/home/k/proj'
@@ -1024,9 +1067,17 @@ test('watches only git metadata, copies paths, clears search, Home and End', { t
   const ui = await $.ui.mount({ plugin: 'sidetrack', surface: 'terminal', component: 'Pane', requestId: 'filetree', props: paneProps(60) })
   await clock.settle()
   await ui.post({ copy: `${root}/b.txt` }, { in: 'rows' })
-  await ui.post({ copy: `${root}/b.txt`, shift: true }, { in: 'rows' })
+  await clock.settle()
+  const menu = treeRows(await ui.drawn()).rows.map(r => r.id).filter(id => id.startsWith('menu:'))
+  expect(menu).toEqual(['menu:o', 'menu:e', 'menu:y', 'menu:Y', 'menu:u', 'menu:x'])
+  await ui.post({ press: 'menu:y' }, { in: 'rows' })
+  await clock.settle()
+  await ui.post({ copy: `${root}/b.txt` }, { in: 'rows' })
+  await clock.settle()
+  await ui.post({ press: 'menu:Y' }, { in: 'rows' })
   await clock.settle()
   expect(copied).toEqual(['b.txt', `${root}/b.txt`])
+  expect(treeRows(await ui.drawn()).rows.some(r => r.id.startsWith('menu:'))).toBe(false)
   await ui.input({ key: 'q', text: 'b', kind: 'change' })
   await clock.settle()
   expect(await ui.find({ key: 'clear' })).toBeDefined()
@@ -3374,9 +3425,9 @@ test('terminal: git counts sit in their own columns left of the value column', {
 
 const GLYPH_SETS: [string, Record<string, string>, string, string[], string, string, string][] = [
   ['nerd', { glyphs: 'nerd' }, 'ok', ['\u{f19f3}', '\u{eb46}', '\u{eb37}', '\u{ea70}', '\u{ea90}', '\u{eac5}', '\u{eb57}'], '\u{ea6d} ', '\u{e5ff} ', '\u{f0354} '],
-  ['auto without a Nerd Font', {}, 'missing', ['↑', '⌂', '↻', '⊙', '◫', '⊟', '⊡'], '⌕ ', '■ ', '∙ '],
-  ['plain', { glyphs: 'plain' }, 'ok', ['↑', '⌂', '↻', '⊙', '◫', '⊟', '⊡'], '⌕ ', '■ ', '∙ '],
-  ['text', { glyphs: 'text' }, 'ok', ['up', 'cwd', 'sync', 'dots', 'size', 'fold', 'split'], '', '■ ', '∙ '],
+  ['auto without a Nerd Font', {}, 'missing', ['↑', '⌂', '↻', '⊙', '◫', '⊟', '⊡'], '⌕ ', '■ ', '• '],
+  ['plain', { glyphs: 'plain' }, 'ok', ['↑', '⌂', '↻', '⊙', '◫', '⊟', '⊡'], '⌕ ', '■ ', '• '],
+  ['text', { glyphs: 'text' }, 'ok', ['up', 'cwd', 'sync', 'dots', 'size', 'fold', 'split'], '', '■ ', '• '],
 ]
 for (const [name, options, font, labels, lens, dirGlyph, fileGlyph] of GLYPH_SETS) {
   test(`terminal regression: the ${name} glyph set draws single-cell toolbar, search and tree glyphs`, { timeoutMs: 20_000, options }, async ($, on) => {
@@ -3494,7 +3545,7 @@ test('terminal: a deleted file stays in its folder as a red struck ghost row wit
   expect(gone?.right.map(s => s.t.trim())).toContain('-7')
   const fresh = rows.find(r => r.id === `${root}/new.ts`)
   expect(fresh?.left[3]).toMatchObject({ c: 'ansi256(2)' })
-  expect(fresh?.left[2]).toMatchObject({ c: 'ansi256(2)' })
+  expect(fresh?.left[2]).toMatchObject({ c: HUES.dark.blue })
   await ui.post({ press: `${root}/gone.ts` }, { in: 'rows' })
   await clock.settle()
   expect(await texts(ui)).toContain('"format":"diff"')
@@ -4123,7 +4174,7 @@ const MEMORY_WORLD = (root: string): World => ({
   status: '## main\0', numstat: '',
 })
 
-for (const [set, surface, brain, markdown] of [['nerd', 'terminal', '\u{f09d1} ', '\u{f0354} '], ['plain', 'terminal', '§ ', '∙ '], ['auto', 'desktop', '', '']] as const) {
+for (const [set, surface, brain, markdown] of [['nerd', 'terminal', '\u{f09d1} ', '\u{f0354} '], ['plain', 'terminal', '§ ', '• '], ['auto', 'desktop', '', '']] as const) {
   test(`${surface} ${set} glyphs: AGENTS.md, CLAUDE.md and .claude/rules/*.md draw a brain, README.md keeps the markdown icon`, { timeoutMs: 20_000, options: { glyphs: set } }, async ($, on) => {
     const root = '/Users/k/proj'
     const clock = world(on, MEMORY_WORLD(root), [])
@@ -4142,7 +4193,8 @@ for (const [set, surface, brain, markdown] of [['nerd', 'terminal', '\u{f09d1} '
     } else {
       const icon = (name: string) => svgs(tree).find(s => s.alt === `file ${name}`)?.source ?? ''
       for (const name of ['AGENTS.md', 'CLAUDE.md', 'x.md']) expect([name, icon(name).includes(ICONS.brain)]).toEqual([name, true])
-      expect(icon('README.md')).toContain(ICONS['file-text'])
+      expect(icon('README.md')).toContain(`d="${ICONS.file}"`)
+      expect(icon('README.md')).toContain('>MD</text>')
       expect(icon('README.md')).not.toContain(ICONS.brain)
     }
     await ui.unmount()

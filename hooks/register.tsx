@@ -1,5 +1,5 @@
 import { type EngineInterface, type HookStream, type ProcessSpawnResult, type Register, type RenderElement, type RenderSurface, type Timer, update } from 'claude-code'
-import { herdrError, herdrOpenCommand, herdrPane, herdrSplit, isBinaryPath, LINUX_LAUNCH, openCommand, openWithCommand, type Target, terminalTarget, tmuxCommand, tmuxOpenCommand, words } from './open'
+import { herdrError, herdrOpenCommand, herdrPane, herdrSplit, isBinaryPath, LINUX_LAUNCH, openCommand, openWithCommand, revealCommand, revealLabel, type Target, terminalTarget, tmuxCommand, tmuxOpenCommand, words } from './open'
 import type { ButtonProps } from './button'
 import { bindKeys } from './keybind'
 import { register as registerGraph, startGraph } from './sidetrack'
@@ -18,9 +18,9 @@ import { CELL_PROBE, colorOf, GHOSTTY_ARGS, narrowEmoji, parseGhostty, type Term
 import type { ZoneProps } from './zone'
 import type { HitProps } from './hit'
 import { type FileRef, fileRefs, markdownSplit, parseHref, refHref } from './refs'
-import { activityIcon, barSvg, lineSvg, selectionOn, DESK, DESK_GIT, DESK_GIT_TEXT, GAP_PX, iconSvg, type IconName, ink, lighten, nodeIcon, ROW_PX, rowSvg, STEP_PX, toolSvg } from './svg'
+import { activityIcon, barSvg, lineSvg, selectionOn, DESK, DESK_GIT, DESK_GIT_TEXT, GAP_PX, iconSvg, type IconName, ink, lighten, type Mark, nodeIcon, ROW_PX, rowSvg, STEP_PX, toolSvg } from './svg'
 import { ADD_COLOR, DEL_COLOR, JUMP_COLOR, type Palette, parsePalette } from './palette'
-import { BRAIN, CHEVRON_CLOSED, CHEVRON_OPEN, fileIcon, GIT_COLOR, GUARD, isMemory } from './icons'
+import { BRAIN, CHEVRON_CLOSED, CHEVRON_OPEN, FILE_PLAIN, fileHue, fileIcon, fileTag, folderEmblem, GIT_COLOR, GUARD, HUES, isMemory } from './icons'
 import { allGuards, GUARD_TOOLS, guardIn, guardOver, type Guards, outsideOf, parseGuards, toggled } from './guard'
 import {
   age,
@@ -140,6 +140,7 @@ let generation = 0
 let lastPress = { key: '', at: 0 }
 let noNerd = false
 let glyphSetting = 'auto'
+let typeColors = true
 const WORDS: Record<string, string> = { up: 'up', cwd: 'cwd', refresh: 'sync', hidden: 'dots', size: 'size', collapse: 'fold', autocollapse: 'auto', split: 'split', unselect: 'clear' }
 let openWithSetting = ''
 let binariesInDefaultApp = false
@@ -203,6 +204,7 @@ let searchIndex: { root: string; paths: Promise<Indexed> } | null = null
 let activityId = 0
 let pointer = true
 let hovered = ''
+let menuFor = ''
 let view = { from: 0, max: 0 }
 let nativeScroll = false
 let lastSync = 0
@@ -225,6 +227,7 @@ let clock: Clock = '24h'
 let showHints = true
 let showRemote = false
 const ROOT_PRESS = '\u0000root'
+const MENU = 'menu:'
 let hintRoot = ''
 let reloading = 0
 let previewActs = new Map<string, () => void>()
@@ -1896,7 +1899,7 @@ async function grepNav($: EngineInterface, key: string, surface?: RenderSurface)
 }
 
 async function grepAct($: EngineInterface, key: string, shift: boolean, surface?: RenderSurface): Promise<boolean> {
-  if (!['x', 'd', 'v', 't', 'y', 'Y', 'u', 'i'].includes(key) || (key === 'v' && shift)) return false
+  if (!['x', 'd', 'e', 'v', 't', 'y', 'Y', 'u', 'i'].includes(key) || (key === 'v' && shift)) return false
   const path = grep.rows[grep.sel]?.path
   const { ids, marked } = picks(await get($))
   if (!path) {
@@ -1910,6 +1913,7 @@ async function grepAct($: EngineInterface, key: string, shift: boolean, surface?
     $.clock.after(50, () => focusPane($, t.root, 'q'))
   } else if (key === 'x') await toggleGuard($, path)
   else if (key === 'd') await diffFile($, path)
+  else if (key === 'e') await showInFiles($, path)
   else if (key === 'v') await markRow($, path)
   else if (key === 't') await openTerminal($, dirname(path))
   else await copyPaths($, ids.length ? ids : [path], key === 'u' ? 'name' : key === 'Y' || shift ? 'absolute' : 'relative', surface)
@@ -2943,6 +2947,31 @@ async function press($: EngineInterface, n: FileNode): Promise<void> {
   await openNode($, n)
 }
 
+async function showInFiles($: EngineInterface, path: string): Promise<void> {
+  const os = await osName($)
+  const run = await $.process.run(revealCommand(os, path), { timeoutMs: 10_000 }).catch(() => null)
+  if (run && (run.exitCode === 0 || os === 'win32')) return
+  if (os === 'linux') {
+    const { argv, init } = openCommand(os, dirname(path))
+    if ((await $.process.run(argv, init).catch(() => null))?.exitCode === 0) return
+  }
+  $.ui.toast(`could not show ${path} in the file manager`)
+}
+
+function menuItems(t: FileTree, n: FileNode, os: 'linux' | 'darwin' | 'win32', isGuarded: boolean): { key: string; label: string }[] {
+  const changed = Boolean(t.git[n.id]) || (n.kind === 'dir' && (t.counts[n.id] ?? []).some(c => c > 0))
+  return [
+    { key: 'o', label: n.kind === 'dir' ? (t.expanded.includes(n.id) ? 'Collapse' : 'Expand') : 'Open' },
+    { key: 'e', label: revealLabel(os) },
+    ...(inTmux || inHerdr ? [{ key: 't', label: 'Open a terminal here' }] : []),
+    { key: 'y', label: 'Copy relative path' },
+    { key: 'Y', label: 'Copy absolute path' },
+    { key: 'u', label: 'Copy name' },
+    ...(changed ? [{ key: 'd', label: 'Diff against HEAD' }] : []),
+    { key: 'x', label: isGuarded ? 'Unguard' : "Guard from Claude's edits" },
+  ]
+}
+
 async function openNode($: EngineInterface, n: FileNode): Promise<void> {
   if (isGhost(await get($), n.id)) await diffFile($, n.id)
   else if (n.kind === 'dir') {
@@ -2982,6 +3011,10 @@ async function ghosttyColors($: EngineInterface): Promise<TermColors> {
 }
 
 async function navigate($: EngineInterface, key: string, shift = false, surface?: RenderSurface): Promise<void> {
+  if (menuFor) {
+    menuFor = ''
+    void $.ui.invalidate('ui.render')
+  }
   if (zjump.on) return jumpKey($, shift && [...key].length === 1 ? key.toUpperCase() : key)
   if (shortcutKey($, key, surface)) return
   if (key === 'z') return jumpOpen($)
@@ -3041,6 +3074,7 @@ async function steer($: EngineInterface, key: string, shift = false, surface?: R
   else if (key === 'w') await showOutside($)
   else if (cur && key === 'x') await toggleGuard($, cur.id)
   else if (cur && key === 'd') await diffFile($, cur.id)
+  else if (cur && key === 'e') await showInFiles($, cur.id)
   else if (key === 'V' || (key === 'v' && shift)) clearMarks($)
   else if (cur && key === 'v') await markRow($, cur.id)
   else if (key === 't') await openTerminal($, cur ? (cur.kind === 'dir' ? cur.id : cur.parent) : t.root)
@@ -3101,6 +3135,7 @@ async function pressHeader($: EngineInterface, id: string): Promise<void> {
     await patch($, () => ({ selected: '', cursor: '' }))
   }
   else if (id === 'external' && t.preview) await openFile($, t.preview, { mode: '' })
+  else if (id === 'reveal' && t.preview) await showInFiles($, t.preview)
   else if (id === 'split') await toggleSplit($)
   else if (id === 'shimmer') {
     const lit = !shimmerOn
@@ -3126,7 +3161,7 @@ async function pressHeader($: EngineInterface, id: string): Promise<void> {
       collapseAt = 0
     }
   }
-  else if (previewActs.has(id) && id !== 'external') previewActs.get(id)?.()
+  else if (previewActs.has(id) && id !== 'external' && id !== 'reveal') previewActs.get(id)?.()
   else if (id === 'scope') await scopeSearch($, '')
   else if (id === 'sort-name') await sortBy($, 'name')
   else if (id === 'sort-git') await sortBy($, 'git')
@@ -3212,6 +3247,7 @@ function shortPath(path: string): string {
 export const register: Register = (on, options) => {
   registerGraph(on, options)
   glyphSetting = typeof options?.glyphs === 'string' ? options.glyphs : 'auto'
+  typeColors = options?.iconColors !== 'git status'
   shimmerOn = options?.shimmer !== 'off'
   const activity = typeof options?.activity === 'string' ? options.activity : 'reads and writes'
   showReads = activity.includes('reads')
@@ -3468,9 +3504,28 @@ export const register: Register = (on, options) => {
     const data = rowsMessage(e.data)
     void sync($)
     const t = await get($)
+    if (typeof data.copy === 'string' && !zjump.on && t.nodes.some(n => n.id === data.copy)) {
+      const id = data.copy
+      if (!marks.includes(id)) pickOnly(id)
+      menuFor = menuFor === id ? '' : id
+      if (t.scroll === null) await patch($, () => ({ scroll: view.from }))
+      await patch($, () => ({ cursor: id, selected: id }))
+      void $.ui.invalidate('ui.render')
+      return {}
+    }
     if (typeof data.copy === 'string') {
       await copyPath($, data.copy === ROOT_PRESS ? t.root : data.copy.replace(/^grep:\d+:/, ''), Boolean(data.shift), e.surface)
       return {}
+    }
+    if (typeof data.press === 'string' && data.press.startsWith(MENU)) {
+      menuFor = ''
+      await navigate($, data.press.slice(MENU.length), false, e.surface)
+      void $.ui.invalidate('ui.render')
+      return {}
+    }
+    if (typeof data.press === 'string' && menuFor) {
+      menuFor = ''
+      void $.ui.invalidate('ui.render')
     }
     if (typeof data.scrollTo === 'number') {
       const to = Math.round(Math.max(0, Math.min(1, data.scrollTo)) * view.max)
@@ -3684,6 +3739,7 @@ export const register: Register = (on, options) => {
     const light = e.surface !== 'desktop' && lightTerminal
     const theme: Theme = { ...DEFAULT_THEME, ...palette.theme }
     const tones = light ? LIGHT_TONES : TONES
+    const hues = desk ? HUES.desk : light ? HUES.light : HUES.dark
     const mutedText = theme.muted ? { color: theme.muted } : { dimColor: true }
     const gitColors = { ...(desk ? DESK_GIT_TEXT : GIT_COLOR), ...palette.git }
     const addColor = palette.add ?? ADD_COLOR
@@ -3796,6 +3852,8 @@ export const register: Register = (on, options) => {
       const name = t.preview !== t.root && inside(t.root, t.preview) ? relative(t.root, t.preview) : shortPath(t.preview)
       const listing = t.preview === OUTSIDE
       const external = { id: 'external', label: glyphSetting === 'text' ? 'open' : unicode ? '↗' : '\u{eb14}', dim: true, hint: 'open in default app' }
+      const revealHint = revealLabel(await osName($)).toLowerCase()
+      const revealButton = { id: 'reveal', label: glyphSetting === 'text' ? 'folder' : unicode ? '▤' : '\u{eaf7}', dim: true, hint: revealHint }
       if (desk && Svg) {
         const step = p?.diff ? (p.diff.some(l => l.kind === '@') ? 'file' : 'hunk') : ''
         const toTree = t.nodes.find(n => n.id === t.preview)?.kind === 'dir'
@@ -3808,9 +3866,10 @@ export const register: Register = (on, options) => {
           { id: 'pv-f', key: 'f', icon: 'page-down', hint: 'page down', run: () => scrollPreview($, previewRows - 2) },
           ...(listing ? [] : [{ id: 'pv-d', key: 'd', icon: (p?.diff ? (toTree ? 'folder' : 'file') : 'diff') as IconName, hint: p?.diff ? (toTree ? 'back to the tree' : 'back to the file') : 'diff against HEAD', run: () => diffFile($, t.preview) }]),
           ...(edits ? [{ id: 'pv-e', key: 'e', icon: 'pencil' as const, hint: `edit at line ${previewLine}`, run: () => editPreview($, t.preview) }] : []),
+          ...(listing ? [] : [{ id: 'reveal', key: '', icon: 'folder-open' as const, hint: revealHint, run: () => showInFiles($, t.preview) }]),
           ...(listing ? [] : [{ id: 'external', key: '', icon: 'external-link' as const, hint: 'open in default app', run: () => pressHeader($, 'external') }]),
         ]
-        previewActs = new Map(acts.map(a => [a.id, () => void a.run().then(() => (a.id === 'external' ? undefined : parkPreview($)))]))
+        previewActs = new Map(acts.map(a => [a.id, () => void a.run().then(() => (a.id === 'external' || a.id === 'reveal' ? undefined : parkPreview($)))]))
         const tools = acts.map(a => ({ id: a.id, label: '', dim: true, hint: a.hint, icon: a.icon }))
         return (
           <Box flexDirection="column" minHeight={Math.max(1, e.props.scroll?.bodyRows ?? 1)} backgroundColor={theme.bg || undefined}>
@@ -3889,7 +3948,9 @@ export const register: Register = (on, options) => {
             <Box flexShrink={1} flexGrow={1}>
               <Text bold wrap="truncate-start">{name}</Text>
             </Box>
-            {listing ? null : hint([external], 8 + name.length)}
+            {listing ? null : hint([revealButton, external], 8 + name.length)}
+            {listing ? null : button(revealButton)}
+            {listing ? null : <Text> </Text>}
             {listing ? null : button(external)}
           </Box>
           <Box flexDirection="row" gap={2}>
@@ -4081,7 +4142,8 @@ export const register: Register = (on, options) => {
       const isDim = shimmerOn && !isBright && dimmed.has(n.id)
       const tone = t.flashTones[n.id] ?? 'orange'
       const isGuard = guarded.has(n.id)
-      const iconColor = isGuard ? theme.urgent : isIgnored ? theme.muted : (gitColor ?? (n.hidden ? theme.muted : n.kind === 'dir' ? theme.accent : theme.muted))
+      const hue = typeColors ? fileHue(n) : undefined
+      const iconColor = isGuard ? theme.urgent : isIgnored ? theme.muted : hue ? hues[hue] : ((typeColors ? undefined : gitColor) ?? (n.hidden ? theme.muted : n.kind === 'dir' ? theme.accent : theme.muted))
       const nameColor = isIgnored ? theme.muted : (gitColor ?? (n.hidden ? theme.muted : theme.fg || undefined))
       const cells = cellsOf(n)
       if (cells.metric && gitColor && !isIgnored && !isLong(n)) cells.metric = { ...cells.metric, c: gitColor }
@@ -4100,7 +4162,7 @@ export const register: Register = (on, options) => {
       const isCur = n.id === t.cursor
       const caret = n.kind === 'dir' ? (unicode ? (r.open ? '▾' : '▸') : r.open ? CHEVRON_OPEN : CHEVRON_CLOSED) + ' ' : isCur ? '▎ ' : '  '
       const isRepo = n.kind === 'dir' && n.id === t.top
-      const glyph = isGuard ? (unicode ? GUARD.plain : GUARD.nerd) : unicode ? (n.kind === 'dir' ? '■' : isMemory(n) ? BRAIN.plain : '∙') : fileIcon(n, r.open, isRepo)
+      const glyph = isGuard ? (unicode ? GUARD.plain : GUARD.nerd) : unicode ? (n.kind === 'dir' ? '■' : isMemory(n) ? BRAIN.plain : FILE_PLAIN) : fileIcon(n, r.open, isRepo)
       const lit = isBright || isDim
       const left: Seg[] = [
         { t: '  '.repeat(r.depth) },
@@ -4115,7 +4177,7 @@ export const register: Register = (on, options) => {
         return cell ? { t: pad, c: cell.c } : { t: pad }
       })
       right.push({ t: badge, c: status && !hasCounts ? gitColor : theme.muted, b: true })
-      return { spec: { id: n.id, left: clean(left), right: clean(right), ...(isPicked ? { on: true as const } : {}) }, n, r, cells, status: hasCounts ? '' : (status ?? ''), gitColor, isIgnored: isIgnored && !hasCounts && !status, iconColor, nameColor, lit, tone, isDim, isBright, isRepo, isGuard, isPicked, isLink, link, linkColor, parts: hl(n.name) }
+      return { spec: { id: n.id, left: clean(left), right: clean(right), ...(isPicked ? { on: true as const } : {}) }, n, r, cells, status: hasCounts ? '' : (status ?? ''), gitColor, isIgnored: isIgnored && !hasCounts && !status, iconColor, nameColor, lit, tone, isDim, isBright, isRepo, isGuard, isPicked, isLink, link, linkColor, parts: hl(n.name), hue }
     }
     const rowSpec = (r: (typeof rows)[number]): RowSpec => rowParts(r).spec
     const scopeName = t.searchScope ? `${relative(t.root, t.searchScope)}/` : ''
@@ -4185,9 +4247,12 @@ export const register: Register = (on, options) => {
     const deskRow = (p: ReturnType<typeof rowParts>, deskShimmer: boolean) => {
       const r = p.r
       const n = p.n
-      const icon = p.isGuard ? 'x' : nodeIcon(n, p.isRepo)
       const tone = tones[p.tone]
-      const iconInk = p.lit ? (tone?.solid ?? accentInk) : p.isGuard ? ink(theme.urgent, DESK.urgent) : ink(p.iconColor, n.kind === 'dir' ? accentInk : mutedInk)
+      const tag = p.hue && !p.lit && !p.isGuard && !p.isIgnored ? fileTag(n) : undefined
+      const emblem = !p.isGuard && !p.isRepo ? folderEmblem(n) : undefined
+      const mark: Mark | undefined = tag && p.hue ? { tag, fill: hues[p.hue] } : emblem ? { emblem } : undefined
+      const icon = p.isGuard ? 'x' : tag ? 'file' : nodeIcon(n, p.isRepo)
+      const iconInk = p.lit ? (tone?.solid ?? accentInk) : p.isGuard ? ink(theme.urgent, DESK.urgent) : tag ? mutedInk : ink(p.iconColor, n.kind === 'dir' ? accentInk : mutedInk)
       const strike = p.status === 'D' && n.kind !== 'dir'
       const name = p.lit && deskShimmer
         ? <Client key={`lit:${n.id}`} module="./rows.tsx" props={{ rows: [{ id: '', left: clean([{ t: n.name, sh: p.tone, b: p.isBright }]), right: [] }], active: '', activeBg: '', hoverBg: '', tones: rowColors.tones, pointer: false } satisfies RowsProps} />
@@ -4197,7 +4262,7 @@ export const register: Register = (on, options) => {
       return (
         <Box key={`row:${n.id}`} position="relative" flexDirection="row" alignItems="center" backgroundColor={n.id === t.cursor && !p.isPicked ? deskCursor : p.isPicked ? deskCur : undefined} hover={{ backgroundColor: n.id === t.cursor && !p.isPicked ? deskCursor : p.isPicked ? deskCur : deskHover }}>
           {n.id === t.cursor && (e.props.isFocused || !p.isPicked) && Svg ? <Box key={`bar:${n.id}`} position="absolute" top={0} left={0} bottom={0}><Svg key={`bar-svg:${n.id}`} source={barSvg(accentInk)} alt="cursor" width={2} height={ROW_PX} /></Box> : null}
-          {Svg ? <Svg key={`icon:${n.id}`} source={rowSvg(r.depth, n.kind === 'dir' ? (r.open ? 'open' : 'closed') : null, icon, iconInk)} alt={`${p.isGuard ? 'guarded ' : ''}${n.kind === 'dir' ? 'folder' : n.kind === 'link' ? 'link' : 'file'} ${n.name}`} width={r.depth * STEP_PX + STEP_PX * 2 + GAP_PX} height={ROW_PX} /> : null}
+          {Svg ? <Svg key={`icon:${n.id}`} source={rowSvg(r.depth, n.kind === 'dir' ? (r.open ? 'open' : 'closed') : null, icon, iconInk, undefined, undefined, mark)} alt={`${p.isGuard ? 'guarded ' : ''}${n.kind === 'dir' ? 'folder' : n.kind === 'link' ? 'link' : 'file'} ${n.name}`} width={r.depth * STEP_PX + STEP_PX * 2 + GAP_PX} height={ROW_PX} /> : null}
           <Box flexGrow={p.isLink ? 0 : 1} flexShrink={1} overflow="hidden">{name}</Box>
           {p.isLink ? <Text key={`link:${n.id}`} {...tint(p.linkColor)}>{` → `}</Text> : null}
           {p.isLink ? <Box flexGrow={1} /> : null}
@@ -4211,6 +4276,22 @@ export const register: Register = (on, options) => {
         </Box>
       )
     }
+
+    const deskMenu = (depth: number, items: { key: string; label: string }[]) => (
+      <Box key={`menu:${menuFor}`} flexDirection="column" backgroundColor={DESK.field}>
+        {items.map(m => (
+          <Box key={`menu-row:${m.key}`} position="relative" flexDirection="row" alignItems="center" hover={{ backgroundColor: deskHover }}>
+            {Svg ? <Svg key={`menu-pad:${m.key}`} source={rowSvg(depth + 1, null, null, mutedInk)} alt="" width={(depth + 1) * STEP_PX + STEP_PX * 2 + GAP_PX} height={ROW_PX} /> : null}
+            <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text wrap="truncate-end">{m.label}</Text></Box>
+            <Text {...mutedText}>{m.key}</Text>
+            <Box width={2} flexShrink={0} />
+            <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+              <Client key={`hit:${MENU}${m.key}`} module="./hit.tsx" props={{ id: MENU + m.key } satisfies HitProps} width="100%" height="100%" />
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    )
 
     const note = (text: string): RowSpec => ({ id: '', left: [{ t: text, c: theme.muted }], right: [] })
     const jumpSpecs: RowSpec[] = zjump.rows.length
@@ -4234,6 +4315,16 @@ export const register: Register = (on, options) => {
       ...(pinned.length > 0 ? [note('  ⋮')] : []),
       ...shown.map(rowSpec),
     ]
+    const menuNode = menuFor && !zjump.on && !grepping ? t.nodes.find(n => n.id === menuFor) : undefined
+    const menu = menuNode ? menuItems(t, menuNode, await osName($), guarded.has(menuNode.id)) : []
+    const menuAt = menu.length && !desk ? specs.findIndex(r => r.id === menuFor) : -1
+    if (menuNode && menuAt >= 0) {
+      const indent = (rows.find(r => r.node.id === menuFor)?.depth ?? 0) * 2 + 4
+      const wide = Math.max(...menu.map(m => m.label.length)) + 2
+      specs.splice(menuAt + 1, 0, ...menu.map((m): RowSpec => ({ id: MENU + m.key, left: clean([{ t: ' '.repeat(indent) }, { t: ` ${m.key} `, c: theme.accent, b: true, bg: searchBg }, { t: ` ${m.label}`.padEnd(wide), c: theme.fg || undefined, bg: searchBg }]), right: [] })))
+      const extra = specs.length - room
+      if (!nativeScroll && extra > 0) specs.splice(menuAt + menu.length < room ? room : 0, extra)
+    }
     if (nativeScroll) {
       let size = 0
       const cut = specs.findIndex(r => (size += JSON.stringify(r).length + 1) > ROWS_BUDGET)
@@ -4340,7 +4431,10 @@ export const register: Register = (on, options) => {
         </Box>
       )
       const out: RenderElement[] = rows.length === 0 ? [<Text key="empty" {...mutedText}>empty</Text>] : []
-      for (const p of deskParts) out.push(deskRow(p, deskShimmer))
+      for (const p of deskParts) {
+        out.push(deskRow(p, deskShimmer))
+        if (p.n.id === menuNode?.id) out.push(deskMenu(p.r.depth, menu))
+      }
       if (deskStart > 0) out.unshift(<Text key="above" {...mutedText}>{`  … ${deskStart} rows above, collapse folders or use search`}</Text>)
       const below = shown.length - deskStart - deskParts.length
       if (below > 0) out.push(<Text key="more" {...mutedText}>{`  … ${below} more rows, collapse folders or use search`}</Text>)

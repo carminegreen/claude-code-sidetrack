@@ -1,6 +1,6 @@
 import type { FileNode } from '../types'
 
-import { isMemory } from './icons'
+import { type Emblem, isMemory, TAG_INK } from './icons'
 import { type Rgb, ratio, rgbOf } from './pixmap'
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -239,12 +239,37 @@ export const GAP_PX = 6
 export const CHEVRON_PX = 9
 export const STEP_PX = 16
 
-export function rowSvg(depth: number, chevron: 'open' | 'closed' | null, icon: IconName | null, color: string, chevronColor: string = DESK.muted, gap: number = GAP_PX): string {
+const EMBLEMS: Record<Emblem, string> = {
+  docs: 'M8 11h8M8 14h8M8 17h5',
+  tests: 'M8.5 13.5l2.5 2.5 4.5-5',
+  media: 'M7 17l3-3.5 2 2 2-2.5 3 4z',
+  tools: 'M8 11.5l2.5 2.5L8 16.5M12.5 17H16',
+  config: 'M8 12h8M8 15.5h8M10.5 11v2M13.5 14.5v2',
+  github: 'M12 11a2.75 2.75 0 1 0 0 5.5 2.75 2.75 0 1 0 0-5.5',
+  git: 'M12 11.75a2 2 0 1 0 0 4 2 2 0 1 0 0-4M7 13.75h3M14 13.75h3',
+  npm: 'M8 16.5v-5h8v5M12 11.5v5',
+}
+
+export type Mark = { tag: string; fill: string } | { emblem: Emblem }
+
+function markSvg(mark: Mark, icon: IconName, color: string, x: number, y: number): string {
+  if ('emblem' in mark) {
+    const k = 16 / 24
+    return `<path transform="translate(${x} ${y}) scale(${+k.toFixed(4)})" fill="none" stroke="${FILLED.has(icon) ? '#ffffff' : color}" stroke-width="2" d="${EMBLEMS[mark.emblem]}"/>`
+  }
+  const w = mark.tag.length > 2 ? 15 : 11
+  const size = mark.tag.length > 2 ? 6 : 7
+  return `<rect x="${x - 1}" y="${y + 7.5}" width="${w}" height="9" rx="2" fill="${mark.fill}" stroke="none"/>` +
+    `<text x="${x - 1 + w / 2}" y="${y + 14.4}" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="${size}" font-weight="800" fill="${TAG_INK}" stroke="none">${mark.tag.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`
+}
+
+export function rowSvg(depth: number, chevron: 'open' | 'closed' | null, icon: IconName | null, color: string, chevronColor: string = DESK.muted, gap: number = GAP_PX, mark?: Mark): string {
   const w = depth * STEP_PX + STEP_PX * 2 + gap
   const guides = Array.from({ length: depth }, (_, i) => `<rect x="${i * STEP_PX + 7.5}" y="0" width="1" height="${ROW_PX}" fill="${DESK.guide}" fill-opacity="0.35" stroke="none"/>`).join('')
   const x = depth * STEP_PX
   const chev = chevron ? glyph(chevron === 'open' ? 'chevron-down' : 'chevron-right', chevronColor, x + (STEP_PX - CHEVRON_PX) / 2, (ROW_PX - CHEVRON_PX) / 2, CHEVRON_PX, 3.2) : ''
-  const pic = icon ? glyph(icon, color, x + STEP_PX, (ROW_PX - 16) / 2, 16) : ''
+  const top = (ROW_PX - 16) / 2
+  const pic = icon ? glyph(icon, color, x + STEP_PX, top, 16) + (mark ? markSvg(mark, icon, color, x + STEP_PX, top) : '') : ''
   return frame(w, ROW_PX, guides + chev + pic)
 }
 

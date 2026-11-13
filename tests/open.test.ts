@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { herdrError, herdrOpenCommand, herdrPane, openCommand, openWithCommand, tmuxOpenCommand, TMUX_OPEN } from '../hooks/open'
+import { herdrError, herdrOpenCommand, herdrPane, openCommand, openWithCommand, revealCommand, tmuxOpenCommand, TMUX_OPEN } from '../hooks/open'
 
 test('inside tmux, open hands the file to the tmux opener with the editor and its folder', () => {
   const { argv } = tmuxOpenCommand('nvim', '/work/A & B/dax.ts')
@@ -73,4 +73,10 @@ test('herdr replies: the pane id comes from the split JSON and a failure message
   expect(herdrError('{"error":{"code":"pane_not_found","message":"pane w1:p35 not found"},"id":"cli:pane:split"}\n')).toBe('pane w1:p35 not found')
   expect(herdrError('error: unexpected argument\nUsage: herdr pane split')).toBe('error: unexpected argument')
   expect(herdrError('')).toBe('')
+})
+
+test('show in file manager selects the file: open -R on macOS, explorer /select on Windows, FileManager1 with an encoded URI on Linux', () => {
+  expect(revealCommand('darwin', '/w/A & B/x.ts')).toEqual(['open', '-R', '--', '/w/A & B/x.ts'])
+  expect(revealCommand('win32', 'C:/w/A B/x.ts')).toEqual(['explorer.exe', '/select,C:\\w\\A B\\x.ts'])
+  expect(revealCommand('linux', '/w/a,b #1/x?.ts').at(-2)).toBe('array:string:file:///w/a%2Cb%20%231/x%3F.ts')
 })

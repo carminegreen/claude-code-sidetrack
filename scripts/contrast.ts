@@ -1,5 +1,5 @@
 import { LIGHT_TONES, TONES } from '../hooks/git'
-import { GIT_COLOR } from '../hooks/icons'
+import { GIT_COLOR, HUES, TAG_INK } from '../hooks/icons'
 import { ADD_COLOR, DEL_COLOR, JUMP_COLOR } from '../hooks/palette'
 import { DEFAULT_THEME } from '../hooks/tree'
 import { boxLook, ratio, rgbOf } from '../hooks/pixmap'
@@ -58,14 +58,15 @@ function checks(tones: typeof TONES, text: number, dim: number): Check[] {
 }
 
 const suites = [
-  { name: 'dark', backgrounds: DARK_BACKGROUNDS, checks: checks(TONES, TEXT, DIM) },
-  { name: 'light', backgrounds: LIGHT_BACKGROUNDS, checks: checks(LIGHT_TONES, AAA, AAA) },
+  { name: 'dark', backgrounds: DARK_BACKGROUNDS, checks: [...checks(TONES, TEXT, DIM), ...Object.entries(HUES.dark).map(([k, color]) => ({ name: `icon ${k}`, color, min: TEXT }))] },
+  { name: 'light', backgrounds: LIGHT_BACKGROUNDS, checks: [...checks(LIGHT_TONES, AAA, AAA), ...Object.entries(HUES.light).map(([k, color]) => ({ name: `icon ${k}`, color, min: TEXT }))] },
   ...[['desktop dark', DARK_BACKGROUNDS], ['desktop light', LIGHT_BACKGROUNDS]].map(([name, bases]) => ({
     name: name as string,
     backgrounds: deskBackgrounds(bases as Record<string, string>),
     checks: [
       ...(['accent', 'jump', 'muted', 'urgent'] as const).map(k => ({ name: `desk icon ${k}`, color: DESK[k], min: TEXT, skip: 'selection' })),
       ...Object.entries(DESK_GIT).map(([k, color]) => ({ name: `desk git icon ${k}`, color, min: TEXT, skip: 'selection' })),
+      ...Object.entries(HUES.desk).map(([k, color]) => ({ name: `desk icon ${k}`, color, min: TEXT, skip: 'selection' })),
       ...Object.entries(DESK_GIT_TEXT).filter(([, color]) => color.startsWith('#')).map(([k, color]) => ({ name: `desk git text ${k}`, color, min: TEXT, skip: 'selection' })),
     ],
   })),
@@ -141,6 +142,13 @@ for (const [name, bg] of Object.entries(LIGHT_BACKGROUNDS)) {
   const ok = term >= 1.3
   if (!ok) failed++
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(16)} terminal ${tui} ${term.toFixed(2)}:1`)
+}
+console.log('\nfile type tags on their desktop icon chips')
+for (const [name, fill] of Object.entries(HUES.desk)) {
+  const ratio = contrast(TAG_INK, fill)
+  const ok = ratio >= LABEL
+  if (!ok) failed++
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(16)} ${TAG_INK} on ${fill} ${ratio.toFixed(2)}:1 (needs ${LABEL}:1)`)
 }
 console.log('\njump chip text on its tint inside the search field')
 for (const [name, base] of Object.entries({ ...DARK_BACKGROUNDS, ...LIGHT_BACKGROUNDS })) {

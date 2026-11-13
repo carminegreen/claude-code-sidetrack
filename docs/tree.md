@@ -14,6 +14,8 @@ flowchart TB
 - Symlinks show an arrow after the name: muted when the target is in the tree, yellow when it is outside, red when it is missing or the link is circular; the footer names the target and which of these it is for the selected row
 - `AGENTS.md`, `CLAUDE.md`, their `.local.md` variants and Markdown files under any `.claude/rules/` folder draw a brain instead of the Markdown icon (`§` in plain glyphs)
 - Draws in the terminal's own palette, with Nerd Font, plain or text glyphs; in the Desktop app, vector icons for files, folders and the toolbar
+- File icons take the color of their language or kind (TypeScript blue, JavaScript yellow, Rust orange, images purple), one set for dark and one for light backgrounds, and git status colors the name and the letter at the right; in the Desktop app a file icon carries a short tag such as TS, PY or `{}`. Icon colors set to git status brings back grey icons in the git color
+- Well-known folders carry an emblem: docs, tests, media and assets, scripts and bin, config folders such as `.claude` and `.vscode`, `.github`, `.git` and `node_modules`
 - Changes made outside Claude show at once on Linux through `inotifywait`
 
 <img src="media/live-updates.gif" alt="A file created and removed in a shell shows in the tree and the treemap" width="800">

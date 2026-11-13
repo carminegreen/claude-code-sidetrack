@@ -49,6 +49,16 @@
         "text"
       ]
     },
+    "iconColors": {
+      "type": "string",
+      "title": "Icon colors",
+      "description": "file type: each file icon takes the color of its language or kind (TypeScript blue, JavaScript yellow, Rust orange) and git status colors the name and the letter at the right. git status: icons are grey and take the git status color, as before 0.3.0.",
+      "default": "file type",
+      "options": [
+        "file type",
+        "git status"
+      ]
+    },
     "follow": {
       "type": "string",
       "title": "Follow Claude",
