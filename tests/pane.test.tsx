@@ -31,6 +31,9 @@ const COMMAND = {
   presentation: { isFullscreen: true, columns: 200 },
 } as const
 
+// The file tree shares this module: kept closed, so each test sees the graph alone.
+const TREE_OFF = { options: { start: 'off' } } as const
+
 type Git = { exitCode: number; stdout: string; stderr: string }
 
 // As git does: --short names the branch heads/<name> when a tag has the same name.
@@ -61,6 +64,8 @@ function world(
     return { value: { command: 'sidetrack' } }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.cwd', () => ({ value: '/' }))
+  mock.env(on, {})
   on('ui.panes', () => ({
     value: pane ? [{ id: 'sidetrack', title: 'Graph', isShown: pane.isShown, isFocused: false, isPlaced: true }] : [],
   }))
@@ -119,7 +124,7 @@ const ok = (stdout: string): Git => ({ exitCode: 0, stdout, stderr: '' })
 
 const START = { cwd: '/', surface: 'terminal', isInteractive: true } as const
 
-test('the pane opens once at start, without filetree', async ($, on) => {
+test('the pane opens once at start, without filetree', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const { seen } = world(on, { log: ok(LOG), branch: 'main' })
 
@@ -131,7 +136,7 @@ test('the pane opens once at start, without filetree', async ($, on) => {
   expect(seen.opens).toBe(1)
 })
 
-test('a pane opened at start but not drawn runs git once it is shown', async ($, on) => {
+test('a pane opened at start but not drawn runs git once it is shown', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const { seen, show } = world(on, { log: ok(LOG), branch: 'main', unplaced: true })
 
@@ -143,7 +148,7 @@ test('a pane opened at start but not drawn runs git once it is shown', async ($,
   expect(seen.logs).toBe(1)
 })
 
-test('with open at start off, the pane waits for the command', { options: { openAtStart: 'off' } }, async ($, on) => {
+test('with open at start off, the pane waits for the command', { options: { start: 'off', openAtStart: 'off' } }, async ($, on) => {
   const clock = mock.clock(on)
   const { seen } = world(on, { log: ok(LOG), branch: 'main' })
 
@@ -153,7 +158,7 @@ test('with open at start off, the pane waits for the command', { options: { open
   expect(seen.logs).toBe(0)
 })
 
-test('the command toggles the pane', async ($, on) => {
+test('the command toggles the pane', TREE_OFF, async ($, on) => {
   mock.clock(on)
   const { seen } = world(on, { log: ok(LOG), branch: 'main' })
 
@@ -163,7 +168,7 @@ test('the command toggles the pane', async ($, on) => {
   expect(seen).toEqual({ opens: 1, closes: 1, logs: 1, checks: 1 })
 })
 
-test('the command toggles the pane while a turn runs', async ($, on) => {
+test('the command toggles the pane while a turn runs', TREE_OFF, async ($, on) => {
   mock.clock(on)
   const { command } = world(on, { log: ok(LOG), branch: 'main' })
 
@@ -171,7 +176,7 @@ test('the command toggles the pane while a turn runs', async ($, on) => {
   expect(command()?.immediate).toBe(true)
 })
 
-test('a pane closed before the open at start stays closed', async ($, on) => {
+test('a pane closed before the open at start stays closed', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const { seen } = world(on, { log: ok(LOG), branch: 'main' })
 
@@ -182,7 +187,7 @@ test('a pane closed before the open at start stays closed', async ($, on) => {
   expect(seen).toEqual({ opens: 1, closes: 1, logs: 1, checks: 1 })
 })
 
-test('a hidden pane polls nothing, a shown one polls every 3 seconds', async ($, on) => {
+test('a hidden pane polls nothing, a shown one polls every 3 seconds', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const { seen, hide, show } = world(on, { log: ok(LOG), branch: 'main' })
 
@@ -199,7 +204,7 @@ test('a hidden pane polls nothing, a shown one polls every 3 seconds', async ($,
   expect(seen.checks).toBe(3)
 })
 
-test('git log runs again only once a ref, HEAD or the day changed', async ($, on) => {
+test('git log runs again only once a ref, HEAD or the day changed', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const git = { log: ok(LOG), branch: 'main' }
   const { seen } = world(on, git)
@@ -213,7 +218,7 @@ test('git log runs again only once a ref, HEAD or the day changed', async ($, on
   expect(seen.logs).toBe(2)
 })
 
-test('a slow git is not stacked by the next polls', async ($, on) => {
+test('a slow git is not stacked by the next polls', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const git = { log: ok(LOG), branch: 'main', delayMs: 0 }
   const { seen } = world(on, git, clock)
@@ -227,7 +232,7 @@ test('a slow git is not stacked by the next polls', async ($, on) => {
   expect(seen.checks).toBe(3)
 })
 
-test('a new commit shows on the next poll, and an error clears once git recovers', async ($, on) => {
+test('a new commit shows on the next poll, and an error clears once git recovers', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const git = { log: ok(LOG), branch: 'main' }
   world(on, git)
@@ -248,7 +253,7 @@ test('a new commit shows on the next poll, and an error clears once git recovers
   await ui.unmount()
 })
 
-test('a git log that fails while the refs stay put is tried again on the next poll', async ($, on) => {
+test('a git log that fails while the refs stay put is tried again on the next poll', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   const git = { log: { exitCode: -1, stdout: '', stderr: 'git: timed out\n' }, branch: 'main', refs: 'b HEAD\nb refs/heads/main\n' }
   world(on, git)
@@ -263,7 +268,7 @@ test('a git log that fails while the refs stay put is tried again on the next po
   await ui.unmount()
 })
 
-test('a repository with no commits says so', async ($, on) => {
+test('a repository with no commits says so', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(''), branch: 'main' })
 
@@ -275,7 +280,7 @@ test('a repository with no commits says so', async ($, on) => {
   await ui.unmount()
 })
 
-test('the header names the checked out branch even when its commit is not listed', async ($, on) => {
+test('the header names the checked out branch even when its commit is not listed', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(record('z', '', 'refs/remotes/origin/busy', 'Ada Lovelace', '04/11/26 10:30', 'Busy')), branch: 'old' })
 
@@ -287,7 +292,7 @@ test('the header names the checked out branch even when its commit is not listed
   await ui.unmount()
 })
 
-test('a detached HEAD reads HEAD in the header', async ($, on) => {
+test('a detached HEAD reads HEAD in the header', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(record('a', '', 'HEAD', 'Ada Lovelace', '04/11/26 10:30', 'First')) })
 
@@ -299,7 +304,7 @@ test('a detached HEAD reads HEAD in the header', async ($, on) => {
   await ui.unmount()
 })
 
-test('author and date step aside as the pane narrows', async ($, on) => {
+test('author and date step aside as the pane narrows', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main' })
 
@@ -318,7 +323,7 @@ test('author and date step aside as the pane narrows', async ($, on) => {
   expect(await meta(30)).toEqual([])
 })
 
-test('a control character in a commit leaves the pane drawn', async ($, on) => {
+test('a control character in a commit leaves the pane drawn', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(record('a', '', 'HEAD -> refs/heads/main', 'Ev\x07e', '04/11/26 10:30', 'Paste \x1b[31mred')), branch: 'main' })
 
@@ -331,7 +336,7 @@ test('a control character in a commit leaves the pane drawn', async ($, on) => {
   await ui.unmount()
 })
 
-test('a long author is cut between characters, never inside an emoji', async ($, on) => {
+test('a long author is cut between characters, never inside an emoji', TREE_OFF, async ($, on) => {
   mock.clock(on)
   const log = [
     record('c', 'b', 'HEAD -> refs/heads/main', 'Ada Lovelace 🚀x', '04/11/26 10:30', 'Rocket'),
@@ -352,7 +357,7 @@ test('a long author is cut between characters, never inside an emoji', async ($,
   await ui.unmount()
 })
 
-test('a control character in the git error leaves the pane drawn', async ($, on) => {
+test('a control character in the git error leaves the pane drawn', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: { exitCode: 128, stdout: '', stderr: '\x1b[31mfatal:\x1b[m broken\n' }, branch: 'main' })
 
@@ -364,7 +369,7 @@ test('a control character in the git error leaves the pane drawn', async ($, on)
   await ui.unmount()
 })
 
-test('a control character in a branch name leaves the pane drawn', async ($, on) => {
+test('a control character in a branch name leaves the pane drawn', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(record('a', '', 'HEAD -> refs/heads/x\u009by', 'Ada Lovelace', '04/11/26 10:30', 'First')), branch: 'x\u009by' })
 
@@ -377,7 +382,7 @@ test('a control character in a branch name leaves the pane drawn', async ($, on)
   await ui.unmount()
 })
 
-test('signatures shown by the git config leave the graph whole', async ($, on) => {
+test('signatures shown by the git config leave the graph whole', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main', signed: true })
 
@@ -389,7 +394,7 @@ test('signatures shown by the git config leave the graph whole', async ($, on) =
   await ui.unmount()
 })
 
-test('a log encoding set in the git config leaves accents readable', async ($, on) => {
+test('a log encoding set in the git config leaves accents readable', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(record('a', '', 'HEAD -> refs/heads/main', 'José', '04/11/26 10:30', 'Größe')), branch: 'main', latin1: true })
 
@@ -401,7 +406,7 @@ test('a log encoding set in the git config leaves accents readable', async ($, o
   await ui.unmount()
 })
 
-test('a tag named like the branch leaves the header on the branch name', async ($, on) => {
+test('a tag named like the branch leaves the header on the branch name', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main', clash: true })
 
@@ -413,7 +418,7 @@ test('a tag named like the branch leaves the header on the branch name', async (
   await ui.unmount()
 })
 
-test('without git the pane says why', async ($, on) => {
+test('without git the pane says why', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main', missing: 'git' })
 
@@ -425,7 +430,7 @@ test('without git the pane says why', async ($, on) => {
   await ui.unmount()
 })
 
-test('without date the graph still draws, every commit dated in full', async ($, on) => {
+test('without date the graph still draws, every commit dated in full', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main', missing: 'date' })
 
@@ -437,7 +442,7 @@ test('without date the graph still draws, every commit dated in full', async ($,
   await ui.unmount()
 })
 
-test('a right-to-left subject or author leaves the graph reading left to right', async ($, on) => {
+test('a right-to-left subject or author leaves the graph reading left to right', TREE_OFF, async ($, on) => {
   mock.clock(on)
   world(on, { log: ok(record('a', '', '', 'דוד לוי', '04/11/26 10:30', 'תיקון באג')), branch: 'עברית' })
 
@@ -449,7 +454,7 @@ test('a right-to-left subject or author leaves the graph reading left to right',
   await ui.unmount()
 })
 
-test('the header and ref labels take theme colours, readable on a light theme too', async ($, on) => {
+test('the header and ref labels take theme colours, readable on a light theme too', TREE_OFF, async ($, on) => {
   mock.clock(on)
   const refs = 'HEAD -> refs/heads/main, refs/heads/dev, refs/remotes/origin/x, tag: refs/tags/v1'
   world(on, { log: ok(record('a', '', refs, 'Ada Lovelace', '04/11/26 10:30', 'First')), branch: 'main' })
@@ -469,7 +474,7 @@ test('the header and ref labels take theme colours, readable on a light theme to
   await ui.unmount()
 })
 
-test('a subject one huge paragraph long leaves the rows below it drawn', async ($, on) => {
+test('a subject one huge paragraph long leaves the rows below it drawn', TREE_OFF, async ($, on) => {
   mock.clock(on)
   const log = [
     record('c', 'b', 'HEAD -> refs/heads/main', 'Ada Lovelace', '04/11/26 10:30', 'x'.repeat(120000)),
@@ -511,7 +516,7 @@ for (const [what, lanes, tags] of [
   })
 }
 
-test('after a /clear the pane draws the graph again', async ($, on) => {
+test('after a /clear the pane draws the graph again', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main' })
   // As the host does: /clear starts a new session, its state back to each initial value until written again.
@@ -539,7 +544,7 @@ test('after a /clear the pane draws the graph again', async ($, on) => {
   await ui.unmount()
 })
 
-test('the refresh button reads the graph again at once', async ($, on) => {
+test('the refresh button reads the graph again at once', TREE_OFF, async ($, on) => {
   mock.clock(on)
   const git = { log: ok(LOG), branch: 'main' }
   const { seen } = world(on, git)

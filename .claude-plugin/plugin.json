@@ -1,17 +1,18 @@
 {
-  "name": "filetree",
-  "version": "0.8.3",
-  "description": "An IDE-style file tree for Claude Code that shows what Claude is doing and where in files",
+  "name": "sidetrack",
+  "version": "0.3.0",
+  "description": "An IDE-style file tree and a git graph for Claude Code that show what Claude is doing, where in files and in the history",
   "types": "./types/index.d.ts",
   "author": {
-    "name": "Kurt Buhler"
+    "name": "carminegreen"
   },
-  "repository": "https://github.com/data-goblin/claude-code-filetree",
+  "repository": "https://github.com/carminegreen/sidetrack",
   "keywords": [
     "file-tree",
     "git",
     "mod",
-    "pane"
+    "pane",
+    "git-graph"
   ],
   "userConfig": {
     "activity": {
@@ -284,7 +285,17 @@
       "title": "Palette",
       "description": "Your own colors, laid over the Omarchy, light or default theme: key=#hex pairs separated by spaces. Keys: fg, bg, accent (folders, links), muted (dates, sizes), urgent (deleted, conflicts), selection (selected row), hover (hovered row), jump (folders in z jump mode), added, modified, renamed (git status), add and del (line counts). A key you leave out keeps the theme's color. Example (Gruvbox Dark Hard): fg=#ebdbb2 bg=#1d2021 accent=#83a598 muted=#928374 urgent=#fb4934 selection=#3c3836 added=#b8bb26 modified=#fabd2f renamed=#83a598 add=#b8bb26 del=#fb4934",
       "default": ""
+    },
+    "openAtStart": {
+      "type": "string",
+      "title": "Graph at start",
+      "description": "on: the git graph pane opens when a session starts, right after the file tree. off: it stays closed until you run /sidetrack.",
+      "default": "on",
+      "options": [
+        "on",
+        "off"
+      ]
     }
   },
-  "license": "MIT"
+  "license": "MIT AND BSD-3-Clause"
 }

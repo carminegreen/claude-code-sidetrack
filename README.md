@@ -1,14 +1,18 @@
-<h1 align="center">Claude Code Filetree</h1>
+<h1 align="center">sidetrack</h1>
 
 <p align="center">
-  An IDE-style file tree for Claude Code that shows what Claude is doing and where in files
+  An IDE-style file tree and a git graph for Claude Code that show what Claude is doing, where in files and in the history
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Claude_Code-%E2%89%A5_2.1.306-D97757?logo=claude&logoColor=fff" alt="Claude Code 2.1.306 or newer">
-  <img src="https://img.shields.io/badge/version-0.8.3-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/type-mod-6f42c1" alt="Claude Code mod">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+  <img src="https://img.shields.io/badge/license-MIT_%2B_BSD--3-green" alt="License">
+</p>
+
+<p align="center">
+  A fork of <a href="https://github.com/data-goblin/claude-code-filetree">claude-code-filetree</a> by Kurt Buhler, with a git graph pane added.
 </p>
 
 <details open>
@@ -46,15 +50,15 @@
 The repo is its own plugin marketplace. Run this in the terminal:
 
 ```bash
-claude plugin marketplace add data-goblin/claude-code-filetree
-claude plugin install filetree@claude-code-filetree
+claude plugin marketplace add carminegreen/sidetrack
+claude plugin install sidetrack@sidetrack
 ```
 
 Or inside a Claude Code session:
 
 ```text
-/plugin marketplace add data-goblin/claude-code-filetree
-/plugin install filetree@claude-code-filetree
+/plugin marketplace add carminegreen/sidetrack
+/plugin install sidetrack@sidetrack
 ```
 
 An install fails with `Unrecognized key: "options"` on Claude Code older than 2.1.287: run `claude update`, then install again.
@@ -89,6 +93,7 @@ An install fails with `Unrecognized key: "options"` on Claude Code older than 2.
 - Guard files and folders from Claude's edits, and see files written outside the repo ([guards](docs/guards.md))
 - Keyboard-driven: vim-style moves, a shortcuts overlay, and alt+l / alt+h in the terminal ([keys](docs/keys.md))
 - `/filetree` commands and where the pane shows in the terminal and the Desktop app ([sidebar](docs/sidebar.md))
+- Git graph of every branch, remote and tag with colored lanes in a second pane, toggled with `/sidetrack` ([graph](docs/graph.md))
 
 <img src="media/filetree-git.gif" alt="A committed file shimmers green and the footer shows the commit" width="800">
 
@@ -96,7 +101,7 @@ An install fails with `Unrecognized key: "options"` on Claude Code older than 2.
 
 ## Settings
 
-All settings are in `/config` under filetree, each with its own description there.
+All settings are in `/config` under sidetrack, each with its own description there.
 
 ```yaml
 Claude activity:  reads and writes | writes | reads | none
@@ -105,6 +110,7 @@ Follow Claude:    on | off
 Jump moves Claude: tree and Claude | tree
 Follow work:      on | off
 Open at start:    on | off
+Graph at start:   on | off
 Focus on open:    on | off
 Right column:     date | age | size | loc | files
 Date format:      year-month-day | day-month | month-day
@@ -176,6 +182,6 @@ The same checks run on macOS, Windows and Linux in CI on every push that touches
 
 ## License
 
-[MIT](LICENSE). The treemap labels use glyphs from [Terminus Font](https://terminus-font.sourceforge.net/) by Dimitar Zhekov (Lat2-Terminus16, SIL Open Font License 1.1).
+[MIT](LICENSE) for the file tree, [BSD-3-Clause](LICENSE-sidetrack) for the git graph (`hooks/sidetrack.tsx`, `hooks/graph.ts`). The treemap labels use glyphs from [Terminus Font](https://terminus-font.sourceforge.net/) by Dimitar Zhekov (Lat2-Terminus16, SIL Open Font License 1.1).
 
-*This project is inspired by my Omarchy app [FileBlade](https://github.com/data-goblin/fileblade)*
+*filetree is inspired by its author's Omarchy app [FileBlade](https://github.com/data-goblin/fileblade)*

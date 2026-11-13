@@ -72,13 +72,37 @@ export type Theme = {
   bg: string
 }
 
+export type RefKind = 'head' | 'local' | 'remote' | 'tag'
+
+export type Ref = { name: string; kind: RefKind }
+
+export type Commit = {
+  hash: string
+  parents: string[]
+  refs: Ref[]
+  author: string
+  day: string
+  time: string
+  subject: string
+}
+
+export type Graph = {
+  branch: string
+  today: string
+  commits: Commit[]
+  error?: string
+  // The refs, HEAD and day the commits were read at.
+  stamp?: string
+}
+
 declare module 'claude-code' {
   interface PluginState {
-    filetree: {
+    sidetrack: {
       tree: FileTree
       theme: Theme
       activity: Activity[]
       visits: Record<string, { n: number; at: number }>
+      graph: Shaped<Graph>
     }
   }
 }

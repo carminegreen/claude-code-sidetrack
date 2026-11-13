@@ -2,6 +2,7 @@ import { type EngineInterface, type HookStream, type ProcessSpawnResult, type Re
 import { herdrError, herdrOpenCommand, herdrPane, herdrSplit, isBinaryPath, LINUX_LAUNCH, openCommand, openWithCommand, type Target, terminalTarget, tmuxCommand, tmuxOpenCommand, words } from './open'
 import type { ButtonProps } from './button'
 import { bindKeys } from './keybind'
+import { register as registerGraph, startGraph } from './sidetrack'
 import { CACHE_KEEP, cacheName, CLEAN, coderFor, EXIT_FAILED, EXIT_LOCKED, EXIT_MISSING, fitCells, PNG_DIRECT_BYTES, PNG_DIRECT_PIXELS, pictureKind, pngSize, POLICY, POSTER } from './peek'
 
 import type { Activity, FileNode, FileTree, Theme } from '../types'
@@ -61,9 +62,9 @@ import {
 import { compileRegex, toEre } from './regex'
 import { SCROLL_KEYS, shortcutGroups, shortcutRows } from './keys'
 
-const TREE = { plugin: 'filetree', key: 'tree' } as const
-const ACTIVITY = { plugin: 'filetree', key: 'activity' } as const
-const VISITS = { plugin: 'filetree', key: 'visits' } as const
+const TREE = { plugin: 'sidetrack', key: 'tree' } as const
+const ACTIVITY = { plugin: 'sidetrack', key: 'activity' } as const
+const VISITS = { plugin: 'sidetrack', key: 'visits' } as const
 const ZOXIDE_TTL_MS = 10_000
 const JUMP_INDEX_LIMIT = 4000
 const JUMP_BLUR_MS = 400
@@ -124,7 +125,7 @@ const SIZE_JOBS = 2
 const SIZE_WALK_LIMIT = 50_000
 const AGE_TICK_MS = 60_000
 const GUARDS = 'guards'
-const SHIMMER_KEY = /^filetree(@[^.]+)?\.shimmer$/
+const SHIMMER_KEY = /^sidetrack(@[^.]+)?\.shimmer$/
 const OUTSIDE = 'writes outside the repo'
 
 let blink: Timer | null = null
@@ -3209,6 +3210,7 @@ function shortPath(path: string): string {
 }
 
 export const register: Register = (on, options) => {
+  registerGraph(on, options)
   glyphSetting = typeof options?.glyphs === 'string' ? options.glyphs : 'auto'
   shimmerOn = options?.shimmer !== 'off'
   const activity = typeof options?.activity === 'string' ? options.activity : 'reads and writes'
@@ -3241,6 +3243,7 @@ export const register: Register = (on, options) => {
   splitAt = options?.split === 'top' ? 'top' : 'bottom'
   jumpMovesClaude = options?.jump !== 'tree'
   on('session.start', async ($, e, next) => {
+    await startGraph($)
     noDock = options?.start === 'off'
     outside = []
     workTouches = []

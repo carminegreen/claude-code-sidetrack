@@ -106,24 +106,25 @@ async function refresh($: EngineInterface, force = false) {
   await update($, graph, () => ({ branch, today: today.stdout.trim(), commits, stamp }))
 }
 
-export const register: Register = (on, options) => {
-  const openAtStart = options?.openAtStart !== 'off'
+let openAtStart = true
 
-  on('session.start', async ($, e, next) => {
-    // Immediate: the graph is most worth watching while Claude works, so the toggle must not wait for the turn to end.
-    await $.command.register({ name: 'sidetrack', description: 'Show or hide the git graph pane', immediate: true })
-    // A git log slower than the period, as in a large history without a commit-graph, is not run twice at once.
-    $.clock.every(POLL_MS, () => {
-      if (isPolling) return
-      isPolling = true
-      void refresh($)
-        .catch(() => {})
-        .finally(() => (isPolling = false))
-    })
-    if (openAtStart) $.clock.after(START_FALLBACK_MS, () => void openOnce($).catch(() => {}))
-
-    return next(e)
+// One module may hook session.start once, so filetree's session.start calls this.
+export async function startGraph($: EngineInterface): Promise<void> {
+  // Immediate: the graph is most worth watching while Claude works, so the toggle must not wait for the turn to end.
+  await $.command.register({ name: 'sidetrack', description: 'Show or hide the git graph pane', immediate: true })
+  // A git log slower than the period, as in a large history without a commit-graph, is not run twice at once.
+  $.clock.every(POLL_MS, () => {
+    if (isPolling) return
+    isPolling = true
+    void refresh($)
+      .catch(() => {})
+      .finally(() => (isPolling = false))
   })
+  if (openAtStart) $.clock.after(START_FALLBACK_MS, () => void openOnce($).catch(() => {}))
+}
+
+export const register: Register = (on, options) => {
+  openAtStart = options?.openAtStart !== 'off'
 
   // Tabs follow open order: ours opens right after filetree's so filetree stays the first tab.
   on('ui.open', { id: FILETREE_PANE }, async ($, e, next) => {
