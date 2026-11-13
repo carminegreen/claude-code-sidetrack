@@ -143,6 +143,17 @@ export function openCommand(os: 'linux' | 'darwin' | 'win32', target: string) {
   }
 }
 
+export function revealCommand(os: 'linux' | 'darwin' | 'win32', path: string): string[] {
+  if (os === 'darwin') return ['open', '-R', '--', path]
+  if (os === 'win32') return ['explorer.exe', `/select,${path.replace(/\//g, '\\')}`]
+  const uri = `file://${path.split('/').map(encodeURIComponent).join('/')}`
+  return ['dbus-send', '--session', '--print-reply', '--dest=org.freedesktop.FileManager1', '--type=method_call', '/org/freedesktop/FileManager1', 'org.freedesktop.FileManager1.ShowItems', `array:string:${uri}`, 'string:']
+}
+
+export function revealLabel(os: 'linux' | 'darwin' | 'win32'): string {
+  return os === 'darwin' ? 'Reveal in Finder' : os === 'win32' ? 'Show in Explorer' : 'Show in file manager'
+}
+
 export function words(command: string): string[] {
   const out: string[] = []
   let word: string | null = null

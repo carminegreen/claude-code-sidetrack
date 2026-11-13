@@ -17,7 +17,7 @@ const GROUPS: readonly ShortcutGroup[] = [
   {
     title: 'Search',
     keys: [
-      { key: 's', label: 'focus search' },
+      { key: 's', label: 'search file names, recent files first' },
       { key: 'i', label: 'search in the folder under the cursor' },
       { key: 'c / r', label: 'match case / regular expression' },
       { key: 'q', label: 'search file contents instead of names' },
@@ -27,6 +27,8 @@ const GROUPS: readonly ShortcutGroup[] = [
     title: 'Files and actions',
     keys: [
       { key: 'd', label: 'diff' },
+      { key: 'e', label: 'show in the file manager' },
+      { key: 'right-click', label: 'actions menu' },
       { key: 'click', label: 'select one row' },
       { key: 'ctrl+click', label: 'add or drop a row; alt+click on macOS' },
       { key: 'shift+click', label: 'select the range from the anchor' },

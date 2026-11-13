@@ -1,5 +1,5 @@
 import { type EngineInterface, type HookStream, type ProcessSpawnResult, type Register, type RenderElement, type RenderSurface, type Timer, update } from 'claude-code'
-import { herdrError, herdrOpenCommand, herdrPane, herdrSplit, isBinaryPath, LINUX_LAUNCH, openCommand, openWithCommand, type Target, terminalTarget, tmuxCommand, tmuxOpenCommand, words } from './open'
+import { herdrError, herdrOpenCommand, herdrPane, herdrSplit, isBinaryPath, LINUX_LAUNCH, openCommand, openWithCommand, revealCommand, revealLabel, type Target, terminalTarget, tmuxCommand, tmuxOpenCommand, words } from './open'
 import type { ButtonProps } from './button'
 import { bindKeys } from './keybind'
 import { register as registerGraph, startGraph } from './sidetrack'
@@ -18,9 +18,9 @@ import { CELL_PROBE, colorOf, GHOSTTY_ARGS, narrowEmoji, parseGhostty, type Term
 import type { ZoneProps } from './zone'
 import type { HitProps } from './hit'
 import { type FileRef, fileRefs, markdownSplit, parseHref, refHref } from './refs'
-import { activityIcon, barSvg, lineSvg, selectionOn, DESK, DESK_GIT, DESK_GIT_TEXT, GAP_PX, iconSvg, type IconName, ink, lighten, nodeIcon, ROW_PX, rowSvg, STEP_PX, toolSvg } from './svg'
+import { activityIcon, barSvg, lineSvg, selectionOn, DESK, DESK_GIT, DESK_GIT_TEXT, GAP_PX, iconSvg, type IconName, ink, lighten, type Mark, nodeIcon, ROW_PX, rowSvg, STEP_PX, toolSvg } from './svg'
 import { ADD_COLOR, DEL_COLOR, JUMP_COLOR, type Palette, parsePalette } from './palette'
-import { BRAIN, CHEVRON_CLOSED, CHEVRON_OPEN, fileIcon, GIT_COLOR, GUARD, isMemory } from './icons'
+import { BRAIN, CHEVRON_CLOSED, CHEVRON_OPEN, FILE_PLAIN, fileHue, fileIcon, fileTag, folderEmblem, GIT_COLOR, GUARD, HUES, isMemory } from './icons'
 import { allGuards, GUARD_TOOLS, guardIn, guardOver, type Guards, outsideOf, parseGuards, toggled } from './guard'
 import {
   age,
@@ -59,6 +59,7 @@ import {
   collator,
   type Row,
 } from './tree'
+import { type Found, rankFound } from './find'
 import { compileRegex, toEre } from './regex'
 import { SCROLL_KEYS, shortcutGroups, shortcutRows } from './keys'
 
@@ -105,6 +106,9 @@ const SPIN_MS = 400
 const DESK_ROW_CHARS = 40
 const READ_REVEAL_LIMIT = 12
 const SEARCH_REVEAL_LIMIT = 60
+const FOUND_LIMIT = 200
+const RECENT_MAX = 20
+const FOUND = 'find:'
 const ACTIVITY_TTL_MS = 45_000
 const COLLAPSE_MS = 10_000
 const EXPAND_MAX = 150
@@ -140,6 +144,7 @@ let generation = 0
 let lastPress = { key: '', at: 0 }
 let noNerd = false
 let glyphSetting = 'auto'
+let typeColors = true
 const WORDS: Record<string, string> = { up: 'up', cwd: 'cwd', refresh: 'sync', hidden: 'dots', size: 'size', collapse: 'fold', autocollapse: 'auto', split: 'split', unselect: 'clear' }
 let openWithSetting = ''
 let binariesInDefaultApp = false
@@ -203,6 +208,11 @@ let searchIndex: { root: string; paths: Promise<Indexed> } | null = null
 let activityId = 0
 let pointer = true
 let hovered = ''
+let menuFor = ''
+const found = { rows: [] as Found[], sel: 0 }
+let foundTree = false
+let recentOn = false
+let recent: { path: string; how: string; at: number }[] = []
 let view = { from: 0, max: 0 }
 let nativeScroll = false
 let lastSync = 0
@@ -225,6 +235,7 @@ let clock: Clock = '24h'
 let showHints = true
 let showRemote = false
 const ROOT_PRESS = '\u0000root'
+const MENU = 'menu:'
 let hintRoot = ''
 let reloading = 0
 let previewActs = new Map<string, () => void>()
@@ -1008,6 +1019,8 @@ function keepTop(cur: FileTree, expanded: string[]): Partial<FileTree> {
 async function flash($: EngineInterface, tones: Record<string, string>): Promise<void> {
   const unique = Object.keys(tones)
   if (unique.length === 0) return
+  const now = await $.clock.now()
+  for (const [path, tone] of Object.entries(tones)) if (path !== BRANCH_ROW) noteRecent(path, tone, now)
   const mine = ++generation
   const root = (await get($)).root
   blink?.cancel()
@@ -1659,21 +1672,98 @@ async function search($: EngineInterface, query: string): Promise<string[]> {
     return []
   }
   if (grep.key) grepClear()
+  found.rows = []
   if (!query.trim()) return []
+  recentOn = false
   const index = await indexPaths($, t)
+  const scope = t.searchScope ? `${t.searchScope.replace(/\/$/, '')}/` : ''
+  if (!foundTree && !t.searchRegex) {
+    const known = new Set(index.paths)
+    const extra = t.nodes.filter(n => n.kind === 'file' && !known.has(n.id) && (t.showHidden || !n.hidden) && inside(t.root, n.id)).map(n => n.id)
+    const paths = [...index.paths, ...extra]
+    const rels = [...index.rel, ...extra.map(p => relative(t.root, p))]
+    const keep = scope ? paths.flatMap((p, i) => (p.startsWith(scope) ? [i] : [])) : null
+    const rows = rankFound(keep ? keep.map(i => paths[i] ?? '') : paths, keep ? keep.map(i => rels[i] ?? '') : rels, query, Boolean(t.searchCase), FOUND_LIMIT)
+    if ((await get($)).query !== query) return []
+    found.rows = rows
+    found.sel = 0
+    void $.ui.invalidate('ui.render')
+    return rows.map(f => f.path)
+  }
   const match = matcher(query, Boolean(t.searchCase), Boolean(t.searchRegex))
   if (!match) return []
   const hits: string[] = []
-  const scope = t.searchScope ? `${t.searchScope.replace(/\/$/, '')}/` : ''
-  for (let i = 0; i < index.rel.length && hits.length < SEARCH_REVEAL_LIMIT; i++) if ((!scope || (index.paths[i] ?? '').startsWith(scope)) && match(index.rel[i] ?? '')) hits.push(index.paths[i] ?? '')
+  for (let i = 0; i < index.rel.length && hits.length < (foundTree ? SEARCH_REVEAL_LIMIT : FOUND_LIMIT); i++) if ((!scope || (index.paths[i] ?? '').startsWith(scope)) && match(index.rel[i] ?? '')) hits.push(index.paths[i] ?? '')
   if ((await get($)).query !== query) return []
   if (match.partial) void $.ui.toast(`regex search stopped after ${hits.length} match${hits.length === 1 ? '' : 'es'}; the pattern is too slow to check every path`)
+  if (!foundTree) {
+    found.rows = hits.map(path => {
+      const rel = relative(t.root, path)
+      return { path, rel, at: matchSpans(query, Boolean(t.searchCase), true, rel).flatMap(([a, b]) => Array.from({ length: b - a }, (_, k) => a + k)) }
+    })
+    found.sel = 0
+    void $.ui.invalidate('ui.render')
+    return hits
+  }
   await revealPaths($, hits)
   const shown = await get($)
   const ids = new Set(shown.nodes.map(n => n.id))
   const stale = [...new Set(hits.filter(p => !ids.has(p)).map(dirname))].filter(d => inside(shown.root, d))
   if (stale.length) await loadDirs($, stale)
   return hits
+}
+
+function listOn(t: FileTree): boolean {
+  return !zjump.on && !t.searchContent && (t.query.trim() ? !foundTree : recentOn && found.rows.length > 0)
+}
+
+function noteRecent(path: string, how: string, at: number): void {
+  recent = [{ path, how, at }, ...recent.filter(r => r.path !== path)].slice(0, RECENT_MAX)
+}
+
+async function openRecent($: EngineInterface): Promise<void> {
+  const t = await get($)
+  if (t.query.trim() || t.searchContent) return
+  found.rows = recent.filter(r => r.path !== t.root && inside(t.root, r.path) && !isIgnored(t.root, r.path)).map(r => ({ path: r.path, rel: relative(t.root, r.path), at: [] }))
+  found.sel = 0
+  recentOn = found.rows.length > 0
+  void $.ui.invalidate('ui.render')
+}
+
+async function foundView($: EngineInterface): Promise<void> {
+  foundTree = !foundTree
+  const t = await get($)
+  if (t.query.trim()) await search($, t.query)
+}
+
+async function goTo($: EngineInterface, path: string): Promise<void> {
+  recentOn = false
+  found.rows = []
+  await revealPaths($, [path])
+  anchorAt(path)
+  pickOnly(path)
+  await patch($, cur => {
+    const open = new Set(cur.expanded)
+    for (const a of ancestorsOf(path, cur.root)) open.add(a)
+    return { query: '', expanded: [...open], cursor: path, selected: path, scroll: null }
+  })
+}
+
+async function foundNav($: EngineInterface, key: string, shift: boolean, surface?: RenderSurface): Promise<boolean> {
+  const by: Record<string, number> = { up: -1, k: -1, down: 1, j: 1, pageup: -10, pagedown: 10, home: -Infinity, end: Infinity }
+  if (key in by) {
+    found.sel = Math.max(0, Math.min(Math.min(found.rows.length, surface === 'desktop' ? DESK_ROWS : Infinity) - 1, found.sel + (by[key] ?? 0)))
+    void $.ui.invalidate('ui.render')
+    const row = found.rows[found.sel]
+    if (surface === 'desktop' && row) void $.ui.scroll({ to: { key: `found-row:${row.path}` }, in: PANE, block: 'nearest' }).catch(() => undefined)
+    return true
+  }
+  const path = found.rows[found.sel]?.path
+  if (path && ['return', 'enter', 'o', 'l', 'right'].includes(key)) {
+    await goTo($, path)
+    return true
+  }
+  return pathAct($, key, shift, path, surface)
 }
 
 function grepOn(t: FileTree): boolean {
@@ -1895,9 +1985,12 @@ async function grepNav($: EngineInterface, key: string, surface?: RenderSurface)
   return true
 }
 
-async function grepAct($: EngineInterface, key: string, shift: boolean, surface?: RenderSurface): Promise<boolean> {
-  if (!['x', 'd', 'v', 't', 'y', 'Y', 'u', 'i'].includes(key) || (key === 'v' && shift)) return false
-  const path = grep.rows[grep.sel]?.path
+function grepAct($: EngineInterface, key: string, shift: boolean, surface?: RenderSurface): Promise<boolean> {
+  return pathAct($, key, shift, grep.rows[grep.sel]?.path, surface)
+}
+
+async function pathAct($: EngineInterface, key: string, shift: boolean, path: string | undefined, surface?: RenderSurface): Promise<boolean> {
+  if (!['x', 'd', 'e', 'v', 't', 'y', 'Y', 'u', 'i'].includes(key) || (key === 'v' && shift)) return false
   const { ids, marked } = picks(await get($))
   if (!path) {
     if ((key === 'y' || key === 'Y' || key === 'u') && marked) await copyPaths($, ids, key === 'u' ? 'name' : key === 'Y' || shift ? 'absolute' : 'relative', surface)
@@ -1910,6 +2003,7 @@ async function grepAct($: EngineInterface, key: string, shift: boolean, surface?
     $.clock.after(50, () => focusPane($, t.root, 'q'))
   } else if (key === 'x') await toggleGuard($, path)
   else if (key === 'd') await diffFile($, path)
+  else if (key === 'e') await showInFiles($, path)
   else if (key === 'v') await markRow($, path)
   else if (key === 't') await openTerminal($, dirname(path))
   else await copyPaths($, ids.length ? ids : [path], key === 'u' ? 'name' : key === 'Y' || shift ? 'absolute' : 'relative', surface)
@@ -2213,6 +2307,11 @@ async function jump($: EngineInterface, query: string, surface?: RenderSurface):
   if ((await get($)).searchContent) {
     const hit = grep.rows[grep.sel]
     if (hit) await openHit($, hit, surface)
+    return
+  }
+  if (listOn(await get($))) {
+    const f = found.rows[found.sel]
+    if (f) await goTo($, f.path)
     return
   }
   const hits = (await search($, query)).slice(0, 10)
@@ -2844,6 +2943,7 @@ function previewLines(text: string, top: number, rows: number, markdown: boolean
 }
 
 async function openFile($: EngineInterface, path: string, how: { mode?: string; line?: number } = {}): Promise<void> {
+  noteRecent(path, 'opened', await $.clock.now())
   const chosen = (how.mode ?? openWithSetting).trim()
   const mode = how.mode === undefined && binariesInDefaultApp && chosen !== 'preview' && isBinaryPath(path) ? '' : chosen
   if (mode === 'preview') return showPreview($, path)
@@ -2943,6 +3043,31 @@ async function press($: EngineInterface, n: FileNode): Promise<void> {
   await openNode($, n)
 }
 
+async function showInFiles($: EngineInterface, path: string): Promise<void> {
+  const os = await osName($)
+  const run = await $.process.run(revealCommand(os, path), { timeoutMs: 10_000 }).catch(() => null)
+  if (run && (run.exitCode === 0 || os === 'win32')) return
+  if (os === 'linux') {
+    const { argv, init } = openCommand(os, dirname(path))
+    if ((await $.process.run(argv, init).catch(() => null))?.exitCode === 0) return
+  }
+  $.ui.toast(`could not show ${path} in the file manager`)
+}
+
+function menuItems(t: FileTree, n: FileNode, os: 'linux' | 'darwin' | 'win32', isGuarded: boolean): { key: string; label: string }[] {
+  const changed = Boolean(t.git[n.id]) || (n.kind === 'dir' && (t.counts[n.id] ?? []).some(c => c > 0))
+  return [
+    { key: 'o', label: n.kind === 'dir' ? (t.expanded.includes(n.id) ? 'Collapse' : 'Expand') : 'Open' },
+    { key: 'e', label: revealLabel(os) },
+    ...(inTmux || inHerdr ? [{ key: 't', label: 'Open a terminal here' }] : []),
+    { key: 'y', label: 'Copy relative path' },
+    { key: 'Y', label: 'Copy absolute path' },
+    { key: 'u', label: 'Copy name' },
+    ...(changed ? [{ key: 'd', label: 'Diff against HEAD' }] : []),
+    { key: 'x', label: isGuarded ? 'Unguard' : "Guard from Claude's edits" },
+  ]
+}
+
 async function openNode($: EngineInterface, n: FileNode): Promise<void> {
   if (isGhost(await get($), n.id)) await diffFile($, n.id)
   else if (n.kind === 'dir') {
@@ -2982,9 +3107,18 @@ async function ghosttyColors($: EngineInterface): Promise<TermColors> {
 }
 
 async function navigate($: EngineInterface, key: string, shift = false, surface?: RenderSurface): Promise<void> {
+  if (menuFor) {
+    menuFor = ''
+    void $.ui.invalidate('ui.render')
+  }
   if (zjump.on) return jumpKey($, shift && [...key].length === 1 ? key.toUpperCase() : key)
   if (shortcutKey($, key, surface)) return
   if (key === 'z') return jumpOpen($)
+  if (listOn(await get($)) && (await foundNav($, key, shift, surface))) return
+  if (recentOn) {
+    recentOn = false
+    void $.ui.invalidate('ui.render')
+  }
   if (grepOn(await get($)) && ((await grepNav($, key, surface)) || (await grepAct($, key, shift, surface)))) return
   await steer($, key, shift, surface)
   if (autoOpened.size) claimMarks((await get($)).cursor)
@@ -3029,7 +3163,10 @@ async function steer($: EngineInterface, key: string, shift = false, surface?: R
     const dir = cur ? (cur.kind === 'dir' ? cur.id : cur.parent) : t.root
     await scopeSearch($, dir === t.root ? '' : dir)
     $.clock.after(50, () => focusPane($, t.root, 'q'))
-  } else if (key === 's') $.clock.after(50, () => focusPane($, t.root, 'q'))
+  } else if (key === 's') {
+    await openRecent($)
+    $.clock.after(50, () => focusPane($, t.root, 'q'))
+  }
   else if (key === 'backspace' && t.searchScope && !t.query) await scopeSearch($, '')
   else if (key === 'a') await pressHeader($, 'autocollapse')
   else if (key === 'n') await sortBy($, 'name')
@@ -3041,6 +3178,7 @@ async function steer($: EngineInterface, key: string, shift = false, surface?: R
   else if (key === 'w') await showOutside($)
   else if (cur && key === 'x') await toggleGuard($, cur.id)
   else if (cur && key === 'd') await diffFile($, cur.id)
+  else if (cur && key === 'e') await showInFiles($, cur.id)
   else if (key === 'V' || (key === 'v' && shift)) clearMarks($)
   else if (cur && key === 'v') await markRow($, cur.id)
   else if (key === 't') await openTerminal($, cur ? (cur.kind === 'dir' ? cur.id : cur.parent) : t.root)
@@ -3101,6 +3239,8 @@ async function pressHeader($: EngineInterface, id: string): Promise<void> {
     await patch($, () => ({ selected: '', cursor: '' }))
   }
   else if (id === 'external' && t.preview) await openFile($, t.preview, { mode: '' })
+  else if (id === 'reveal' && t.preview) await showInFiles($, t.preview)
+  else if (id === 'found-view') await foundView($)
   else if (id === 'split') await toggleSplit($)
   else if (id === 'shimmer') {
     const lit = !shimmerOn
@@ -3126,7 +3266,7 @@ async function pressHeader($: EngineInterface, id: string): Promise<void> {
       collapseAt = 0
     }
   }
-  else if (previewActs.has(id) && id !== 'external') previewActs.get(id)?.()
+  else if (previewActs.has(id) && id !== 'external' && id !== 'reveal') previewActs.get(id)?.()
   else if (id === 'scope') await scopeSearch($, '')
   else if (id === 'sort-name') await sortBy($, 'name')
   else if (id === 'sort-git') await sortBy($, 'git')
@@ -3212,6 +3352,7 @@ function shortPath(path: string): string {
 export const register: Register = (on, options) => {
   registerGraph(on, options)
   glyphSetting = typeof options?.glyphs === 'string' ? options.glyphs : 'auto'
+  typeColors = options?.iconColors !== 'git status'
   shimmerOn = options?.shimmer !== 'off'
   const activity = typeof options?.activity === 'string' ? options.activity : 'reads and writes'
   showReads = activity.includes('reads')
@@ -3468,9 +3609,37 @@ export const register: Register = (on, options) => {
     const data = rowsMessage(e.data)
     void sync($)
     const t = await get($)
-    if (typeof data.copy === 'string') {
-      await copyPath($, data.copy === ROOT_PRESS ? t.root : data.copy.replace(/^grep:\d+:/, ''), Boolean(data.shift), e.surface)
+    if (typeof data.copy === 'string' && !zjump.on && t.nodes.some(n => n.id === data.copy)) {
+      const id = data.copy
+      if (!marks.includes(id)) pickOnly(id)
+      menuFor = menuFor === id ? '' : id
+      if (t.scroll === null) await patch($, () => ({ scroll: view.from }))
+      await patch($, () => ({ cursor: id, selected: id }))
+      void $.ui.invalidate('ui.render')
       return {}
+    }
+    if (typeof data.copy === 'string') {
+      await copyPath($, data.copy === ROOT_PRESS ? t.root : data.copy.replace(/^grep:\d+:/, '').replace(/^find:/, ''), Boolean(data.shift), e.surface)
+      return {}
+    }
+    if (typeof data.press === 'string' && data.press.startsWith(FOUND)) {
+      const path = data.press.slice(FOUND.length)
+      const at = found.rows.findIndex(f => f.path === path)
+      if (at >= 0) {
+        found.sel = at
+        await goTo($, path)
+      }
+      return {}
+    }
+    if (typeof data.press === 'string' && data.press.startsWith(MENU)) {
+      menuFor = ''
+      await navigate($, data.press.slice(MENU.length), false, e.surface)
+      void $.ui.invalidate('ui.render')
+      return {}
+    }
+    if (typeof data.press === 'string' && menuFor) {
+      menuFor = ''
+      void $.ui.invalidate('ui.render')
     }
     if (typeof data.scrollTo === 'number') {
       const to = Math.round(Math.max(0, Math.min(1, data.scrollTo)) * view.max)
@@ -3684,6 +3853,7 @@ export const register: Register = (on, options) => {
     const light = e.surface !== 'desktop' && lightTerminal
     const theme: Theme = { ...DEFAULT_THEME, ...palette.theme }
     const tones = light ? LIGHT_TONES : TONES
+    const hues = desk ? HUES.desk : light ? HUES.light : HUES.dark
     const mutedText = theme.muted ? { color: theme.muted } : { dimColor: true }
     const gitColors = { ...(desk ? DESK_GIT_TEXT : GIT_COLOR), ...palette.git }
     const addColor = palette.add ?? ADD_COLOR
@@ -3744,13 +3914,50 @@ export const register: Register = (on, options) => {
     const searchBg = bgRgb ? toHex(over(bgRgb, rgbOf(theme.fg) ?? (light ? [0, 0, 0] : [255, 255, 255]), 0.07)) : light ? 'ansi256(254)' : 'ansi256(236)'
     const glow = (color: string, id: string) => (hovered === id ? lighten(color) : color)
     const flagOf = { case: 'searchCase', regex: 'searchRegex', content: 'searchContent' } as const
+    const nameQuery = !t.searchContent && Boolean(t.query.trim()) && !zjump.on
+    const arrows = (input: RenderElement) => listing ? [
+      <Box key="q-up-box" height={0} overflow="hidden"><Button key="q-up" plain label="up" onPress={() => void foundNav($, 'up', false, e.surface)} /></Box>,
+      input,
+      <Box key="q-down-box" height={0} overflow="hidden"><Button key="q-down" plain label="down" onPress={() => void foundNav($, 'down', false, e.surface)} /></Box>,
+    ] : input
+    const modeToggle = () => {
+      const look = (active: boolean) => (active ? { color: desk ? accentText : theme.accent, bold: true } : desk ? mutedText : { dimColor: true })
+      const words = (
+        <Text>
+          <Text {...look(!t.searchContent)}>{desk ? 'Names' : 'names'}</Text>
+          <Text {...(desk ? mutedText : { dimColor: true })}>{desk ? ' · ' : '/'}</Text>
+          <Text {...look(Boolean(t.searchContent))}>{desk ? 'Text' : 'text'}</Text>
+        </Text>
+      )
+      return desk ? (
+        <Box key="tool-content" position="relative" flexShrink={0} flexDirection="row" alignItems="center">
+          {words}
+          <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+            <Client key="button-content" module="./button.tsx" props={{ id: 'content', label: '', dim: false } satisfies ButtonProps} width="100%" height="100%" />
+          </Box>
+        </Box>
+      ) : (
+        <Button key="search-content" plain label={t.searchContent ? 'search file names' : 'search inside files'} onPress={() => void searchFlag($, 'searchContent')}>{words}</Button>
+      )
+    }
+    const viewToggle = () => {
+      const label = foundTree ? 'list' : 'tree'
+      return desk ? (
+        <Box key="tool-found-view" position="relative" flexShrink={0} flexDirection="row" alignItems="center">
+          <Text {...mutedText}>{foundTree ? 'List' : 'Tree'}</Text>
+          <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+            <Client key="button-found-view" module="./button.tsx" props={{ id: 'found-view', label: '', dim: true } satisfies ButtonProps} width="100%" height="100%" />
+          </Box>
+        </Box>
+      ) : (
+        <Button key="search-view" plain label={label} onPress={() => void foundView($)}><Text dimColor>{label}</Text></Button>
+      )
+    }
     const toggle = (id: keyof typeof flagOf, label: string, active: boolean, bad: boolean) => {
       const color = bad ? ink(theme.urgent, DESK.urgent) : active ? accentInk : mutedInk
       return desk ? (
         <Box key={`tool-${id}`} position="relative" flexShrink={0} flexDirection="row" alignItems="center">
-          {id === 'content' && Svg
-            ? <Svg key={`search-${id}-icon-${active ? 'on' : 'off'}`} source={iconSvg('file-text', glow(color, id), 16)} alt={`search file contents ${active ? 'on' : 'off'}`} width={16} height={16} />
-            : <Text color={glow(color, id)} hover={{ color: lighten(color) }} weight={active ? 'semibold' : 'regular'}>{label}</Text>}
+          <Text color={glow(color, id)} hover={{ color: lighten(color) }} weight={active ? 'semibold' : 'regular'}>{label}</Text>
           <Box position="absolute" top={0} left={0} right={0} bottom={0}>
             <Client key={`button-${id}`} module="./button.tsx" props={{ id, label: '', dim: !active } satisfies ButtonProps} width="100%" height="100%" />
           </Box>
@@ -3796,6 +4003,8 @@ export const register: Register = (on, options) => {
       const name = t.preview !== t.root && inside(t.root, t.preview) ? relative(t.root, t.preview) : shortPath(t.preview)
       const listing = t.preview === OUTSIDE
       const external = { id: 'external', label: glyphSetting === 'text' ? 'open' : unicode ? '↗' : '\u{eb14}', dim: true, hint: 'open in default app' }
+      const revealHint = revealLabel(await osName($)).toLowerCase()
+      const revealButton = { id: 'reveal', label: glyphSetting === 'text' ? 'folder' : unicode ? '▤' : '\u{eaf7}', dim: true, hint: revealHint }
       if (desk && Svg) {
         const step = p?.diff ? (p.diff.some(l => l.kind === '@') ? 'file' : 'hunk') : ''
         const toTree = t.nodes.find(n => n.id === t.preview)?.kind === 'dir'
@@ -3808,9 +4017,10 @@ export const register: Register = (on, options) => {
           { id: 'pv-f', key: 'f', icon: 'page-down', hint: 'page down', run: () => scrollPreview($, previewRows - 2) },
           ...(listing ? [] : [{ id: 'pv-d', key: 'd', icon: (p?.diff ? (toTree ? 'folder' : 'file') : 'diff') as IconName, hint: p?.diff ? (toTree ? 'back to the tree' : 'back to the file') : 'diff against HEAD', run: () => diffFile($, t.preview) }]),
           ...(edits ? [{ id: 'pv-e', key: 'e', icon: 'pencil' as const, hint: `edit at line ${previewLine}`, run: () => editPreview($, t.preview) }] : []),
+          ...(listing ? [] : [{ id: 'reveal', key: '', icon: 'folder-open' as const, hint: revealHint, run: () => showInFiles($, t.preview) }]),
           ...(listing ? [] : [{ id: 'external', key: '', icon: 'external-link' as const, hint: 'open in default app', run: () => pressHeader($, 'external') }]),
         ]
-        previewActs = new Map(acts.map(a => [a.id, () => void a.run().then(() => (a.id === 'external' ? undefined : parkPreview($)))]))
+        previewActs = new Map(acts.map(a => [a.id, () => void a.run().then(() => (a.id === 'external' || a.id === 'reveal' ? undefined : parkPreview($)))]))
         const tools = acts.map(a => ({ id: a.id, label: '', dim: true, hint: a.hint, icon: a.icon }))
         return (
           <Box flexDirection="column" minHeight={Math.max(1, e.props.scroll?.bodyRows ?? 1)} backgroundColor={theme.bg || undefined}>
@@ -3889,7 +4099,9 @@ export const register: Register = (on, options) => {
             <Box flexShrink={1} flexGrow={1}>
               <Text bold wrap="truncate-start">{name}</Text>
             </Box>
-            {listing ? null : hint([external], 8 + name.length)}
+            {listing ? null : hint([revealButton, external], 8 + name.length)}
+            {listing ? null : button(revealButton)}
+            {listing ? null : <Text> </Text>}
             {listing ? null : button(external)}
           </Box>
           <Box flexDirection="row" gap={2}>
@@ -3931,6 +4143,8 @@ export const register: Register = (on, options) => {
     const picked = picks(t)
     const inSet = new Set(picked.ids)
     const grepping = !zjump.on && grepOn(t)
+    if (recentOn && !e.props.isFocused) recentOn = false
+    const listing = listOn(t)
     if (grepping && grep.key !== grepKey(t)) grepRun($, t)
     const body = e.props.scroll?.bodyRows ?? 40
     const footer = t.nodes.find(n => n.id === t.cursor)?.id ?? (t.selected || '')
@@ -4081,7 +4295,8 @@ export const register: Register = (on, options) => {
       const isDim = shimmerOn && !isBright && dimmed.has(n.id)
       const tone = t.flashTones[n.id] ?? 'orange'
       const isGuard = guarded.has(n.id)
-      const iconColor = isGuard ? theme.urgent : isIgnored ? theme.muted : (gitColor ?? (n.hidden ? theme.muted : n.kind === 'dir' ? theme.accent : theme.muted))
+      const hue = typeColors ? fileHue(n) : undefined
+      const iconColor = isGuard ? theme.urgent : isIgnored ? theme.muted : hue ? hues[hue] : ((typeColors ? undefined : gitColor) ?? (n.hidden ? theme.muted : n.kind === 'dir' ? theme.accent : theme.muted))
       const nameColor = isIgnored ? theme.muted : (gitColor ?? (n.hidden ? theme.muted : theme.fg || undefined))
       const cells = cellsOf(n)
       if (cells.metric && gitColor && !isIgnored && !isLong(n)) cells.metric = { ...cells.metric, c: gitColor }
@@ -4100,7 +4315,7 @@ export const register: Register = (on, options) => {
       const isCur = n.id === t.cursor
       const caret = n.kind === 'dir' ? (unicode ? (r.open ? '▾' : '▸') : r.open ? CHEVRON_OPEN : CHEVRON_CLOSED) + ' ' : isCur ? '▎ ' : '  '
       const isRepo = n.kind === 'dir' && n.id === t.top
-      const glyph = isGuard ? (unicode ? GUARD.plain : GUARD.nerd) : unicode ? (n.kind === 'dir' ? '■' : isMemory(n) ? BRAIN.plain : '∙') : fileIcon(n, r.open, isRepo)
+      const glyph = isGuard ? (unicode ? GUARD.plain : GUARD.nerd) : unicode ? (n.kind === 'dir' ? '■' : isMemory(n) ? BRAIN.plain : FILE_PLAIN) : fileIcon(n, r.open, isRepo)
       const lit = isBright || isDim
       const left: Seg[] = [
         { t: '  '.repeat(r.depth) },
@@ -4115,7 +4330,7 @@ export const register: Register = (on, options) => {
         return cell ? { t: pad, c: cell.c } : { t: pad }
       })
       right.push({ t: badge, c: status && !hasCounts ? gitColor : theme.muted, b: true })
-      return { spec: { id: n.id, left: clean(left), right: clean(right), ...(isPicked ? { on: true as const } : {}) }, n, r, cells, status: hasCounts ? '' : (status ?? ''), gitColor, isIgnored: isIgnored && !hasCounts && !status, iconColor, nameColor, lit, tone, isDim, isBright, isRepo, isGuard, isPicked, isLink, link, linkColor, parts: hl(n.name) }
+      return { spec: { id: n.id, left: clean(left), right: clean(right), ...(isPicked ? { on: true as const } : {}) }, n, r, cells, status: hasCounts ? '' : (status ?? ''), gitColor, isIgnored: isIgnored && !hasCounts && !status, iconColor, nameColor, lit, tone, isDim, isBright, isRepo, isGuard, isPicked, isLink, link, linkColor, parts: hl(n.name), hue }
     }
     const rowSpec = (r: (typeof rows)[number]): RowSpec => rowParts(r).spec
     const scopeName = t.searchScope ? `${relative(t.root, t.searchScope)}/` : ''
@@ -4185,9 +4400,12 @@ export const register: Register = (on, options) => {
     const deskRow = (p: ReturnType<typeof rowParts>, deskShimmer: boolean) => {
       const r = p.r
       const n = p.n
-      const icon = p.isGuard ? 'x' : nodeIcon(n, p.isRepo)
       const tone = tones[p.tone]
-      const iconInk = p.lit ? (tone?.solid ?? accentInk) : p.isGuard ? ink(theme.urgent, DESK.urgent) : ink(p.iconColor, n.kind === 'dir' ? accentInk : mutedInk)
+      const tag = p.hue && !p.lit && !p.isGuard && !p.isIgnored ? fileTag(n) : undefined
+      const emblem = !p.isGuard && !p.isRepo ? folderEmblem(n) : undefined
+      const mark: Mark | undefined = tag && p.hue ? { tag, fill: hues[p.hue] } : emblem ? { emblem } : undefined
+      const icon = p.isGuard ? 'x' : tag ? 'file' : nodeIcon(n, p.isRepo)
+      const iconInk = p.lit ? (tone?.solid ?? accentInk) : p.isGuard ? ink(theme.urgent, DESK.urgent) : tag ? mutedInk : ink(p.iconColor, n.kind === 'dir' ? accentInk : mutedInk)
       const strike = p.status === 'D' && n.kind !== 'dir'
       const name = p.lit && deskShimmer
         ? <Client key={`lit:${n.id}`} module="./rows.tsx" props={{ rows: [{ id: '', left: clean([{ t: n.name, sh: p.tone, b: p.isBright }]), right: [] }], active: '', activeBg: '', hoverBg: '', tones: rowColors.tones, pointer: false } satisfies RowsProps} />
@@ -4197,7 +4415,7 @@ export const register: Register = (on, options) => {
       return (
         <Box key={`row:${n.id}`} position="relative" flexDirection="row" alignItems="center" backgroundColor={n.id === t.cursor && !p.isPicked ? deskCursor : p.isPicked ? deskCur : undefined} hover={{ backgroundColor: n.id === t.cursor && !p.isPicked ? deskCursor : p.isPicked ? deskCur : deskHover }}>
           {n.id === t.cursor && (e.props.isFocused || !p.isPicked) && Svg ? <Box key={`bar:${n.id}`} position="absolute" top={0} left={0} bottom={0}><Svg key={`bar-svg:${n.id}`} source={barSvg(accentInk)} alt="cursor" width={2} height={ROW_PX} /></Box> : null}
-          {Svg ? <Svg key={`icon:${n.id}`} source={rowSvg(r.depth, n.kind === 'dir' ? (r.open ? 'open' : 'closed') : null, icon, iconInk)} alt={`${p.isGuard ? 'guarded ' : ''}${n.kind === 'dir' ? 'folder' : n.kind === 'link' ? 'link' : 'file'} ${n.name}`} width={r.depth * STEP_PX + STEP_PX * 2 + GAP_PX} height={ROW_PX} /> : null}
+          {Svg ? <Svg key={`icon:${n.id}`} source={rowSvg(r.depth, n.kind === 'dir' ? (r.open ? 'open' : 'closed') : null, icon, iconInk, undefined, undefined, mark)} alt={`${p.isGuard ? 'guarded ' : ''}${n.kind === 'dir' ? 'folder' : n.kind === 'link' ? 'link' : 'file'} ${n.name}`} width={r.depth * STEP_PX + STEP_PX * 2 + GAP_PX} height={ROW_PX} /> : null}
           <Box flexGrow={p.isLink ? 0 : 1} flexShrink={1} overflow="hidden">{name}</Box>
           {p.isLink ? <Text key={`link:${n.id}`} {...tint(p.linkColor)}>{` → `}</Text> : null}
           {p.isLink ? <Box flexGrow={1} /> : null}
@@ -4211,6 +4429,22 @@ export const register: Register = (on, options) => {
         </Box>
       )
     }
+
+    const deskMenu = (depth: number, items: { key: string; label: string }[]) => (
+      <Box key={`menu:${menuFor}`} flexDirection="column" backgroundColor={DESK.field}>
+        {items.map(m => (
+          <Box key={`menu-row:${m.key}`} position="relative" flexDirection="row" alignItems="center" hover={{ backgroundColor: deskHover }}>
+            {Svg ? <Svg key={`menu-pad:${m.key}`} source={rowSvg(depth + 1, null, null, mutedInk)} alt="" width={(depth + 1) * STEP_PX + STEP_PX * 2 + GAP_PX} height={ROW_PX} /> : null}
+            <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text wrap="truncate-end">{m.label}</Text></Box>
+            <Text {...mutedText}>{m.key}</Text>
+            <Box width={2} flexShrink={0} />
+            <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+              <Client key={`hit:${MENU}${m.key}`} module="./hit.tsx" props={{ id: MENU + m.key } satisfies HitProps} width="100%" height="100%" />
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    )
 
     const note = (text: string): RowSpec => ({ id: '', left: [{ t: text, c: theme.muted }], right: [] })
     const jumpSpecs: RowSpec[] = zjump.rows.length
@@ -4228,12 +4462,60 @@ export const register: Register = (on, options) => {
         : { id: grepId(h), left: clean([{ t: `${unicode ? '∙' : fileIcon(grepNode(h.path), false, false)} `, c: theme.muted }, { t: grepName(h.path), c: theme.fg || undefined, b: true }]), right: [{ t: ` ${h.text} `, c: theme.muted }] }),
       ...(grepNote ? [note(grepNote)] : []),
     ]
-    const specs: RowSpec[] = zjump.on ? jumpSpecs : grepping ? grepSpecs : desk ? [] : [
+    const foundHead = recentOn && !t.query.trim()
+      ? 'recent files · enter goes to one'
+      : found.rows.length ? `${found.rows.length}${found.rows.length >= FOUND_LIMIT ? '+' : ''} file${found.rows.length === 1 ? '' : 's'} · enter goes to it` : 'no file name matches'
+    const foundParts = (f: Found) => {
+      const cut = f.rel.lastIndexOf('/') + 1
+      const node = grepNode(f.path)
+      const hue = typeColors ? fileHue(node) : undefined
+      const runs: [number, number][] = []
+      for (const i of f.at) {
+        const last = runs[runs.length - 1]
+        if (last && last[1] === i) last[1] = i + 1
+        else runs.push([i, i + 1])
+      }
+      const seen = recent.find(r => r.path === f.path)
+      return {
+        node, hue, name: highlight(f.rel.slice(cut), runs, cut), dir: highlight(f.rel.slice(0, cut), runs, 0),
+        when: foundHead.startsWith('recent') && seen ? { t: `${seen.how === 'purple' ? 'read' : seen.how === 'orange' ? 'wrote' : seen.how === 'green' ? 'committed' : 'opened'} ${age(seen.at, now)}`, tone: seen.how } : null,
+      }
+    }
+    const foundRoom = Math.max(1, room - 1)
+    const foundFrom = nativeScroll ? 0 : Math.max(0, Math.min(found.sel - Math.floor(foundRoom / 2), found.rows.length - foundRoom))
+    const foundSpecs: RowSpec[] = !listing ? [] : [
+      note(` ${foundHead}`),
+      ...found.rows.slice(foundFrom, nativeScroll ? undefined : foundFrom + foundRoom).map((f): RowSpec => {
+        const p = foundParts(f)
+        return {
+          id: FOUND + f.path,
+          left: clean([
+            { t: '  ' },
+            { t: `${unicode ? (isMemory(p.node) ? BRAIN.plain : FILE_PLAIN) : fileIcon(p.node, false, false)} `, c: p.hue ? hues[p.hue] : theme.muted },
+            ...p.name.map(x => ({ t: x.t, c: x.hit ? theme.accent : theme.fg || undefined, b: x.hit || undefined })),
+            { t: '  ' },
+            ...p.dir.map(x => ({ t: x.t, c: x.hit ? theme.accent : theme.muted, b: x.hit || undefined })),
+          ]),
+          right: p.when ? [{ t: ` ${p.when.t} `, c: tones[p.when.tone]?.solid ?? theme.muted }] : [],
+        }
+      }),
+    ]
+    const specs: RowSpec[] = zjump.on ? jumpSpecs : grepping ? grepSpecs : listing ? foundSpecs : desk ? [] : [
       ...(rows.length === 0 ? [note('empty')] : []),
       ...pinned.map(rowSpec),
       ...(pinned.length > 0 ? [note('  ⋮')] : []),
       ...shown.map(rowSpec),
     ]
+    const menuNode = menuFor && !zjump.on && !grepping && !listing ? t.nodes.find(n => n.id === menuFor) : undefined
+    const menu = menuNode ? menuItems(t, menuNode, await osName($), guarded.has(menuNode.id)) : []
+    const menuAt = menu.length && !desk ? specs.findIndex(r => r.id === menuFor) : -1
+    if (menuNode && menuAt >= 0) {
+      const indent = (rows.find(r => r.node.id === menuFor)?.depth ?? 0) * 2 + 4
+      const wide = Math.max(...menu.map(m => m.label.length)) + 2
+      specs.splice(menuAt + 1, 0, ...menu.map((m): RowSpec => ({ id: MENU + m.key, left: clean([{ t: ' '.repeat(indent) }, { t: ` ${m.key} `, c: theme.accent, b: true, bg: searchBg }, { t: ` ${m.label}`.padEnd(wide), c: theme.fg || undefined, bg: searchBg }]), right: [] })))
+      const extra = specs.length - room
+      if (!nativeScroll && extra > 0) specs.splice(menuAt + menu.length < room ? room : 0, extra)
+    }
     if (nativeScroll) {
       let size = 0
       const cut = specs.findIndex(r => (size += JSON.stringify(r).length + 1) > ROWS_BUDGET)
@@ -4287,6 +4569,27 @@ export const register: Register = (on, options) => {
     if (desk && grepping) deskGrepShown = deskGrep.length
     const deskGrepNote = deskGrep.length < grep.rows.length ? `first ${deskGrep.length} of ${grep.rows.length} rows; keep typing to narrow` : grepNote
     const deskTree = () => {
+      if (listing) return (
+        <Box key="found-list" flexDirection="column">
+          <Text key="found-head" {...mutedText}>{foundHead}</Text>
+          {found.rows.slice(0, DESK_ROWS).map((f, k) => {
+            const p = foundParts(f)
+            const tag = p.hue ? fileTag(p.node) : undefined
+            return (
+              <Box key={`found-row:${f.path}`} position="relative" flexDirection="row" alignItems="center" overflow="hidden" backgroundColor={k === found.sel ? deskSel : undefined} hover={{ backgroundColor: k === found.sel ? deskSel : deskHover }}>
+                {Svg ? <Svg key={`found-icon:${f.path}`} source={rowSvg(0, null, tag ? 'file' : nodeIcon(p.node, false), tag ? mutedInk : p.hue ? hues[p.hue] : mutedInk, undefined, undefined, tag && p.hue ? { tag, fill: hues[p.hue] } : undefined)} alt={`file ${f.rel}`} width={STEP_PX * 2 + GAP_PX} height={ROW_PX} /> : null}
+                <Box flexShrink={1} overflow="hidden"><Text wrap="truncate-end">{p.name.map((x, i) => (x.hit ? <Text key={`fh-${i}`} color={accentText} weight="semibold">{x.t}</Text> : x.t))}</Text></Box>
+                <Box flexGrow={1} flexShrink={3} overflow="hidden" marginLeft={1}><Text {...mutedText} wrap="truncate-start">{p.dir.map(x => x.t).join('')}</Text></Box>
+                {p.when ? <Text color={tones[p.when.tone]?.solid ?? mutedInk}>{p.when.t}</Text> : null}
+                <Box width={2} flexShrink={0} />
+                <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+                  <Client key={`hit:${FOUND}${f.path}`} module="./hit.tsx" props={{ id: FOUND + f.path } satisfies HitProps} width="100%" height="100%" />
+                </Box>
+              </Box>
+            )
+          })}
+        </Box>
+      )
       if (grepping) return (
         <Box key="grep-list" flexDirection="column">
           {deskGrep.map((g, k) => (
@@ -4340,7 +4643,10 @@ export const register: Register = (on, options) => {
         </Box>
       )
       const out: RenderElement[] = rows.length === 0 ? [<Text key="empty" {...mutedText}>empty</Text>] : []
-      for (const p of deskParts) out.push(deskRow(p, deskShimmer))
+      for (const p of deskParts) {
+        out.push(deskRow(p, deskShimmer))
+        if (p.n.id === menuNode?.id) out.push(deskMenu(p.r.depth, menu))
+      }
       if (deskStart > 0) out.unshift(<Text key="above" {...mutedText}>{`  … ${deskStart} rows above, collapse folders or use search`}</Text>)
       const below = shown.length - deskStart - deskParts.length
       if (below > 0) out.push(<Text key="more" {...mutedText}>{`  … ${below} more rows, collapse folders or use search`}</Text>)
@@ -4348,7 +4654,7 @@ export const register: Register = (on, options) => {
     }
     const barSize = Math.max(1, Math.round((specs.length * shown.length) / Math.max(1, rows.length)))
     const bar =
-      !nativeScroll && !grepping && rows.length > shown.length + pinned.length
+      !nativeScroll && !grepping && !listing && rows.length > shown.length + pinned.length
         ? { pos: max ? Math.round((from / max) * (specs.length - barSize)) : 0, size: barSize, thumb: theme.accent, track: theme.muted }
         : undefined
 
@@ -4740,19 +5046,22 @@ export const register: Register = (on, options) => {
                 <Box key="jump-up-box" height={0} overflow="hidden"><Button key="jump-up" plain label="up" onPress={() => void jumpKey($, 'up')} /></Box>
                 <Input key="jump" autoFocus placeholder="folder name…" value={zjump.query} onInput={(v: string) => void jumpInput($, v)} onSubmit={() => void jumpKey($, 'return')} />
                 <Box key="jump-down-box" height={0} overflow="hidden"><Button key="jump-down" plain label="down" onPress={() => void jumpKey($, 'down')} /></Box>
-              </> : <Input
-                key="q"
-                placeholder={t.searchContent ? 'Search file contents...' : 'Search files...'}
-                value={t.query}
-                onInput={onQuery}
-                onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
-              />}
+              </> : arrows(
+                <Input
+                  key="q"
+                  placeholder={t.searchContent ? 'Search inside files...' : 'Search file names...'}
+                  value={t.query}
+                  onInput={onQuery}
+                  onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
+                />,
+              )}
             </Box>
             {t.query ? <Button key="clear" plain dimColor label="×" onPress={() => void search($, '')} /> : null}
             <Box flexShrink={0} flexDirection="row" gap={2} marginLeft={1} marginRight={1}>
               {toggle('case', 'Aa', Boolean(t.searchCase), false)}
               {toggle('regex', '.*', Boolean(t.searchRegex), badPattern(t.query, Boolean(t.searchRegex)))}
-              {toggle('content', 'contents', Boolean(t.searchContent), false)}
+              {nameQuery ? viewToggle() : null}
+              {modeToggle()}
             </Box>
           </Box>
         ) : (
@@ -4764,20 +5073,23 @@ export const register: Register = (on, options) => {
                 <Box key="jump-up-box" height={0} overflow="hidden"><Button key="jump-up" plain label="up" onPress={() => void jumpKey($, 'up')} /></Box>
                 <Input key="jump" autoFocus placeholder="folder name…" value={zjump.query} onInput={(v: string) => void jumpInput($, v)} onSubmit={() => void jumpKey($, 'return')} />
                 <Box key="jump-down-box" height={0} overflow="hidden"><Button key="jump-down" plain label="down" onPress={() => void jumpKey($, 'down')} /></Box>
-              </> : <Input
-                key="q"
-                placeholder={t.searchContent ? 'search contents' : 'search'}
-                submitLabel="go"
-                value={t.query}
-                onInput={onQuery}
-                onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
-              />}
+              </> : arrows(
+                <Input
+                  key="q"
+                  placeholder={t.searchContent ? 'search inside files' : 'search file names'}
+                  submitLabel="go"
+                  value={t.query}
+                  onInput={onQuery}
+                  onSubmit={(v: string) => void jump($, v, e.surface).then(() => $.clock.after(100, park))}
+                />,
+              )}
             </Box>
             {t.query ? <Button key="clear" plain dimColor label={unicode ? '×' : '\u{ea76}'} onPress={() => void search($, '')} /> : null}
             <Box flexShrink={0} flexDirection="row" gap={1} marginLeft={1}>
               {toggle('case', 'Aa', Boolean(t.searchCase), false)}
               {toggle('regex', '.*', Boolean(t.searchRegex), badPattern(t.query, Boolean(t.searchRegex)))}
-              {toggle('content', glyphSetting === 'text' ? 'in' : unicode ? '≡' : '\u{f09aa}', Boolean(t.searchContent), false)}
+              {nameQuery ? viewToggle() : null}
+              {modeToggle()}
               <Text> </Text>
             </Box>
           </Box>
@@ -4787,7 +5099,7 @@ export const register: Register = (on, options) => {
           <Client
             key="rows"
             module="./rows.tsx"
-            props={overlay ? { rows: keyRows.slice(shortcutsTop, shortcutsTop + room), active: '', ...rowColors, pointer } satisfies RowsProps : { rows: specs, active: zjump.on ? (zjump.rows[zjump.sel] ?? "") : grepping ? (grep.rows[grep.sel] ? grepId(grep.rows[grep.sel] as GrepHit) : '') : inSet.has(t.cursor) ? t.cursor : '', ...rowColors, pointer, ...(bar ? { bar } : {}) } satisfies RowsProps}
+            props={overlay ? { rows: keyRows.slice(shortcutsTop, shortcutsTop + room), active: '', ...rowColors, pointer } satisfies RowsProps : { rows: specs, active: zjump.on ? (zjump.rows[zjump.sel] ?? "") : grepping ? (grep.rows[grep.sel] ? grepId(grep.rows[grep.sel] as GrepHit) : '') : listing ? (found.rows[found.sel] ? FOUND + (found.rows[found.sel] as Found).path : '') : inSet.has(t.cursor) ? t.cursor : '', ...rowColors, pointer, ...(bar ? { bar } : {}) } satisfies RowsProps}
           />
         )}
         <Box flexGrow={1} />

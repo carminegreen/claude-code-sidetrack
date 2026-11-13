@@ -31,12 +31,10 @@ const COMMAND = {
   presentation: { isFullscreen: true, columns: 200 },
 } as const
 
-// The file tree shares this module: kept closed, so each test sees the graph alone.
 const TREE_OFF = { options: { start: 'off' } } as const
 
 type Git = { exitCode: number; stdout: string; stderr: string }
 
-// As git does: --short names the branch heads/<name> when a tag has the same name.
 const symbolic = (argv: readonly string[], branch: string, clash?: boolean) =>
   !argv.includes('--short') ? `refs/heads/${branch}` : clash ? `heads/${branch}` : branch
 
@@ -71,7 +69,6 @@ function world(
   }))
   on('ui.open', () => {
     seen.opens++
-    // As an open at start under 144 columns, or in a -p run: open, but not drawn.
     pane = { isShown: !git.unplaced }
     return { value: git.unplaced ? { isPlaced: false, reason: 'no-surface' } : { isPlaced: true } }
   })
@@ -95,14 +92,12 @@ function world(
             : { exitCode: 0, stdout: `${symbolic(e.argv, git.branch, git.clash)}\n`, stderr: '' }
           : sub === 'show-ref' && git.refs !== undefined
             ? ok(git.refs)
-            : // Otherwise show-ref's refs change whenever the log does, so the log stands in for them.
+            :
               git.log
-    // As git does with log.showSignature=true: the verification text lands in stdout before each record.
     const stdout =
       sub === 'log' && git.signed && !e.argv.includes('--no-show-signature')
         ? out.stdout.replace(/^(?=.)/gm, 'Good "git" signature for ada@example.com\n')
         : out.stdout
-    // As git does with i18n.logOutputEncoding=latin1: latin1 bytes, read back as UTF-8.
     const decoded =
       sub === 'log' && git.latin1 && !e.argv.includes('--encoding=UTF-8') ? stdout.replace(/[^\x00-\x7f]/g, '�') : stdout
     return { value: { ...out, stdout: decoded, isStdoutTruncated: false, isStderrTruncated: false } }
@@ -491,7 +486,6 @@ test('a subject one huge paragraph long leaves the rows below it drawn', TREE_OF
   await ui.unmount()
 })
 
-// 250 commits on `lanes` branches at once, every fifth one carrying `tags` tags.
 const history = (lanes: number, tags: number) =>
   Array.from({ length: 250 }, (_, i) => {
     const [lane, n] = [i % lanes, Math.floor(i / lanes)]
@@ -519,7 +513,6 @@ for (const [what, lanes, tags] of [
 test('after a /clear the pane draws the graph again', TREE_OFF, async ($, on) => {
   const clock = mock.clock(on)
   world(on, { log: ok(LOG), branch: 'main' })
-  // As the host does: /clear starts a new session, its state back to each initial value until written again.
   let isCleared = false
   on('session.end', (_, e) => {
     isCleared = true

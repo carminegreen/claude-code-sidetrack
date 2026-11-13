@@ -14,7 +14,7 @@ With the tree focused:
 j / k:        move down / up; k on the first row selects the root; with entries marked, move only the cursor and keep the marks
 h / l:        collapse or go to parent / expand
 o, Enter:     open a file or toggle a folder
-s:            focus search
+s:            focus search; with an empty field, the files touched this session are listed, newest first
 i:            search in the folder under the cursor (Backspace on an empty query or × drops it)
 z:            jump to a folder: opens on the 10 most recent folders, then ranks zoxide style as you type fragments in order (the last one in the folder name), up/down to pick, Enter re-roots and moves Claude there with /cd where the app has /cd (the Desktop app does not), Esc cancels
 c / r:        search: match case / regular expression (Aa / .* in the search row)
@@ -25,6 +25,7 @@ p:            show or hide the preview or treemap
 f / b:        scroll the preview a page
 "[ / ]":      previous / next page of a PDF or Word document
 d:            diff of the entry under the cursor
+e:            show the entry under the cursor in the file manager, selected in its folder (Files, Dolphin and others through FileManager1 on Linux, falling back to opening the folder; Finder on macOS; Explorer on Windows)
 t:            open a shell in the folder under the cursor (or the file's folder) in a new tmux or herdr pane
 x:            guard or unguard the entry under the cursor (off limits to Claude's edits)
 w:            list the files Claude wrote outside the repo this session (shown once there are any)
@@ -34,6 +35,7 @@ v / V:        mark or unmark the entry under the cursor / clear all marks and ke
 shift+j / k:  mark the entry under the cursor, move down / up and mark the next one; shift+down / shift+up do the same
 click:        select one entry and clear the marks
 double-click: open a file
+right-click:  open the actions menu under the row: open, show in the file manager, a terminal in tmux or herdr, copy the relative or absolute path or the name, diff when it changed, guard; each item names its key, and any key closes the menu and still acts
 shift+click:  mark every entry from the anchor (the entry of the last click, ctrl+click, v or move without shift) to the clicked one, in tree order; it replaces the range of the previous shift+click
 ctrl+click:   mark or unmark one entry and make it the anchor, without opening it; alt+click on macOS does the same
 "?":          show or hide every key, grouped, over the tree (the Shortcuts button in the Desktop app); j, k, the arrows, f, b, Page Up/Down, Home and End scroll it, and any other key that acts closes it first (? typed in the search field is just a character)

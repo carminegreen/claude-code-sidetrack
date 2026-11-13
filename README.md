@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Claude_Code-%E2%89%A5_2.1.306-D97757?logo=claude&logoColor=fff" alt="Claude Code 2.1.306 or newer">
   <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/type-mod-6f42c1" alt="Claude Code mod">
-  <img src="https://img.shields.io/badge/license-MIT_%2B_BSD--3-green" alt="License">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
 </p>
 
 <p align="center">
@@ -67,8 +67,8 @@ An install fails with `Unrecognized key: "options"` on Claude Code older than 2.
 
 - File tree of the cwd or a pinned folder, with Git, size, line count and date columns ([tree](docs/tree.md))
 - Collapse all, and expand all up to three levels deep ([tree](docs/tree.md))
-- Symlink arrows, a brain on agent instruction files, and Nerd Font, plain or text glyphs ([tree](docs/tree.md))
-- Search by name across unopened folders, by case or regular expression, scoped to one folder ([search](docs/search.md))
+- File icons colored by language or kind, emblems on well-known folders, symlink arrows, a brain on agent instruction files, and Nerd Font, plain or text glyphs ([tree](docs/tree.md))
+- Search file names with a ranked, fuzzy list that goes to the picked file in the tree, by case or regular expression, scoped to one folder, and see the files touched this session ([search](docs/search.md))
 - Search inside files with `git grep` or `grep -r`, and open a match at its line ([search](docs/search.md))
 - Jump to any folder zoxide style with `z` ([search](docs/search.md))
 - Git status per file and folder, line counts on changed files, and the branch with ahead and behind ([git](docs/git.md))
@@ -90,6 +90,7 @@ An install fails with `Unrecognized key: "options"` on Claude Code older than 2.
 - Treemap of a folder by bytes or lines, with Claude's activity lit ([preview and treemap](docs/preview-treemap.md))
 - Diff of a file or every changed file in a folder, in the pane or your diff tool ([diff](docs/diff.md))
 - Open files in their default app, an editor in a tmux or herdr pane, or any command ([open](docs/open.md))
+- Right-click a row for its actions, and `e` shows the file or folder in the file manager: Files, Dolphin and the like on Linux, Finder on macOS, Explorer on Windows ([open](docs/open.md))
 - Guard files and folders from Claude's edits, and see files written outside the repo ([guards](docs/guards.md))
 - Keyboard-driven: vim-style moves, a shortcuts overlay, and alt+l / alt+h in the terminal ([keys](docs/keys.md))
 - `/filetree` commands and where the pane shows in the terminal and the Desktop app ([sidebar](docs/sidebar.md))
@@ -133,6 +134,7 @@ Preview pane:     bottom | top
 Treemap:          auto | image | cells | off
 Palette:          key=#hex pairs over the terminal colors
 Glyphs:           auto | nerd | plain | text
+Icon colors:      file type | git status
 ```
 
 Follow work is described in [Claude activity](docs/activity.md).
@@ -150,9 +152,22 @@ optional:
   soffice:                Word and office pages
   pandoc, pdftotext:      document text in tmux, herdr and other terminals
   tmux or herdr:          an editor or diff tool in a new pane
-  Nerd Fonts 3.2+:        icons for Glyphs auto, which draws plain Unicode without one or with an older one
+  Nerd Fonts 3.2+:        icons for Glyphs auto, which draws plain Unicode without one or with an older one;
+                          Symbols Nerd Font adds the icons beside any terminal font (see below)
 pictures:  Ghostty or kitty, outside tmux and herdr, on Linux and macOS
 ```
+
+### Icons without changing your terminal font
+
+Glyphs auto draws plain Unicode (`■`, `•`, `⊙ ◫ ⊟ ↻`) when no Nerd Font 3.2+ is installed. Symbols Nerd Font holds only the icons, so the terminal falls back to it for them and keeps your font for text. On Linux:
+
+```bash
+mkdir -p ~/.local/share/fonts/NerdFontsSymbolsOnly
+curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.tar.xz | tar -xJ -C ~/.local/share/fonts/NerdFontsSymbolsOnly
+fc-cache -f
+```
+
+On macOS, `brew install --cask font-symbols-only-nerd-font`. Start a new session afterwards: the font check runs when a session starts.
 
 ## Considerations
 
@@ -182,6 +197,6 @@ The same checks run on macOS, Windows and Linux in CI on every push that touches
 
 ## License
 
-[MIT](LICENSE) for the file tree, [BSD-3-Clause](LICENSE-sidetrack) for the git graph (`hooks/sidetrack.tsx`, `hooks/graph.ts`). The treemap labels use glyphs from [Terminus Font](https://terminus-font.sourceforge.net/) by Dimitar Zhekov (Lat2-Terminus16, SIL Open Font License 1.1).
+[MIT](LICENSE). The treemap labels use glyphs from [Terminus Font](https://terminus-font.sourceforge.net/) by Dimitar Zhekov (Lat2-Terminus16), under the SIL Open Font License 1.1, whose text is at the end of [LICENSE](LICENSE).
 
 *filetree is inspired by its author's Omarchy app [FileBlade](https://github.com/data-goblin/fileblade)*
