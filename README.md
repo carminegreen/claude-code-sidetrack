@@ -50,14 +50,14 @@
 The repo is its own plugin marketplace. Run this in the terminal:
 
 ```bash
-claude plugin marketplace add carminegreen/sidetrack
+claude plugin marketplace add carminegreen/claude-code-sidetrack
 claude plugin install sidetrack@sidetrack
 ```
 
 Or inside a Claude Code session:
 
 ```text
-/plugin marketplace add carminegreen/sidetrack
+/plugin marketplace add carminegreen/claude-code-sidetrack
 /plugin install sidetrack@sidetrack
 ```
 
