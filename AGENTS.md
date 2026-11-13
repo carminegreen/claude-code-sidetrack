@@ -19,18 +19,6 @@
 - `tsconfig.json` checks `hooks`, `tests` and `types` against the engine types vendored in `types/engine/`; the `lint` workflow runs `tsc` and oxlint on every change
 - When Claude Code updates, hot-reload the mod so the engine rewrites `.claude-plugin/types/`, copy `claude-code/index.d.ts` and `claude-code-tools/index.d.ts` from there over the same paths under `types/engine/`, and fix what `tsc -p tsconfig.json` reports. Never vendor `claude-code-mcp`: it lists the local session's MCP tools
 
-## Merging
-
-- Wait for the Codex review on a pull request to finish (its summary comment says completed for the head commit) and fix or answer every finding before merging; CI passing is not enough
-- This holds for pull requests into any branch, not only main: findings left open on a side branch come back when it lands
-- A Codex finding that names a class of bug (Windows paths, missing credit, untested logic) gets a CI check or a regression test in the fix, not only the one-line fix
-
-## Review guidelines
-
-- Check `README.md` against the change on every review and flag anything out of date as a finding: features, keys, settings and their defaults, the version badge, install steps
-- Flag a screenshot or GIF in `README.md` that shows old behaviour as a finding, naming the file
-- A pull request that changes behaviour without updating `README.md` is a finding
-
 ## Tests
 
 - Run tests with `claude plugin test .`, never `bun test`: `claude-code/testing` only exists inside that harness, so bun fails to resolve it
